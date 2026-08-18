@@ -135,7 +135,7 @@ return (
 </td>
   <td style={td}>
   {trainingProgress
-    .filter((t) => t.employee_id === employee.id)
+    .filter((t) => t.employee_id === employee.employee_id)
     .map((t) => `${t.progress_percent}%`)
     .join(", ") || "Not started"}
 </td>                  
