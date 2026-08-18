@@ -37,7 +37,7 @@ const employees = [
 export default function AdminPage() {
   const [realEmployees, setRealEmployees] = useState<any[]>([]);
   const [trainingProgress, setTrainingProgress] = useState<any[]>([]);
-
+const [policyAcknowledgements, setPolicyAcknowledgements] = useState<any[]>([]);
 useEffect(() => {
   async function loadEmployees() {
     const { data, error } = await supabase
@@ -66,6 +66,19 @@ useEffect(() => {
   setTrainingProgress(data || []);
 }
   loadTrainingProgress();
+  async function loadPolicyAcknowledgements() {
+  const { data, error } = await supabase
+    .from("employee_document_acknowledgements")
+    .select("*");
+
+  if (error) {
+    console.error("Error loading policy acknowledgements:", error);
+    return;
+  }
+
+  setPolicyAcknowledgements(data || []); 
+}
+  loadPolicyAcknowledgements();
 }, []);
 
 return (
@@ -116,6 +129,7 @@ return (
 <th style={th}>Mobile</th>
 <th style={th}>Declaration</th>
 <th style={th}>Training</th>
+  <th style={th}>Policies</th>                
 <th style={th}>Status</th>
                 </tr>
               </thead>
@@ -138,7 +152,14 @@ return (
     .filter((t) => t.employee_id === employee.employee_id)
     .map((t) => `${t.progress_percent}%`)
     .join(", ") || "Not started"}
-</td>                  
+</td>  
+    <td style={td}>
+  {policyAcknowledgements.filter(
+    (p) => p.employee_id === employee.employee_id
+  ).length > 0
+    ? "Accepted"
+    : "Outstanding"}
+</td>                
 <td style={td}>
   <strong>{employee.status}</strong>
 </td>
