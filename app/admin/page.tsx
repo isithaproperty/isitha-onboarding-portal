@@ -1,4 +1,8 @@
-import { Header } from '@/components/Header';
+"use client";
+
+import { Header } from "@/components/Header";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
 
 const employees = [
   {
@@ -31,7 +35,26 @@ const employees = [
 ];
 
 export default function AdminPage() {
-  return (
+  const [realEmployees, setRealEmployees] = useState<any[]>([]);
+
+useEffect(() => {
+  async function loadEmployees() {
+    const { data, error } = await supabase
+      .from("employee_hr_onboarding")
+      .select("*");
+
+    if (error) {
+      console.error("Error loading employees:", error);
+      return;
+    }
+
+    setRealEmployees(data || []);
+  }
+
+  loadEmployees();
+}, []);
+
+return (
     <main className="shell">
       <Header />
 
