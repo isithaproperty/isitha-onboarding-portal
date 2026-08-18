@@ -405,10 +405,6 @@ const [message, setMessage] = useState("");
     {message}
   </p>
 )}
-            >
-              Form ready for submission.
-            </p>
-          )}
         </section>
       </form>
     </main>
