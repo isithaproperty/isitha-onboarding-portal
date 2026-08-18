@@ -133,7 +133,6 @@ const { error: policyError } = await supabase
 if (policyError) {
   throw policyError;
 }
-    006
     setSubmitted(true);
     setMessage("Your HR onboarding has been submitted successfully.");
   } catch (error) {
