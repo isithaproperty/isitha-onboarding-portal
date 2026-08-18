@@ -95,6 +95,14 @@ export default function OnboardingPage() {
               </label>
               <input name="id_number" required style={inputStyle} />
             </div>
+            <div style={fieldStyle}>
+  <label style={labelStyle}>SARS Income Tax Number</label>
+  <input
+    name="tax_number"
+    required
+    style={inputStyle}
+  />
+</div>
 
             <div style={fieldStyle}>
               <label style={labelStyle}>Date of Birth</label>
