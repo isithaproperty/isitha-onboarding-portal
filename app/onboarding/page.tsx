@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-
+import { supabase } from "@/lib/supabase";
 const inputStyle = {
   width: "100%",
   padding: "12px 14px",
