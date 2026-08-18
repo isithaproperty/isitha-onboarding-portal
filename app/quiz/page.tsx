@@ -4,12 +4,15 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Header } from '@/components/Header';
 import { quiz } from '@/lib/training';
+import { supabase } from '@/lib/supabase';
 
 export default function QuizPage() {
   const [answers, setAnswers] = useState<number[]>(
     new Array(quiz.length).fill(-1)
   );
   const [submitted, setSubmitted] = useState(false);
+  const [saving, setSaving] = useState(false);
+const [saveMessage, setSaveMessage] = useState('');
 
   const score = answers.reduce((total, answer, index) => {
     return answer === quiz[index].answer ? total + 1 : total;
@@ -24,7 +27,97 @@ export default function QuizPage() {
     setAnswers(updated);
     setSubmitted(false);
   }
+async function submitAssessment() {
+  if (saving) return;
 
+  setSaving(true);
+  setSaveMessage('');
+
+  try {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      setSaveMessage('Please sign in before submitting the assessment.');
+      return;
+    }
+
+    const { data: employee, error: employeeError } = await supabase
+      .from('employees')
+      .select('id')
+      .eq('auth_user_id', user.id)
+      .single();
+
+    if (employeeError || !employee) {
+      setSaveMessage('Your employee profile could not be found.');
+      return;
+    }
+
+    const { data: course, error: courseError } = await supabase
+      .from('training_courses')
+      .select('id')
+      .eq('slug', 'ohsa-awareness')
+      .single();
+
+    if (courseError || !course) {
+      setSaveMessage('OHSA training course could not be found.');
+      return;
+    }
+
+    const { error: attemptError } = await supabase
+      .from('quiz_attempts')
+      .insert({
+        employee_id: employee.id,
+        course_id: course.id,
+        score: percentage,
+        pass_mark: 80,
+        passed: passed,
+      });
+
+    if (attemptError) {
+      setSaveMessage(`Unable to save assessment: ${attemptError.message}`);
+      return;
+    }
+
+    if (passed) {
+      const { error: progressError } = await supabase
+        .from('training_progress')
+        .upsert(
+          {
+            employee_id: employee.id,
+            course_id: course.id,
+            status: 'completed',
+            progress_percent: 100,
+            completed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+          {
+            onConflict: 'employee_id,course_id',
+          }
+        );
+
+      if (progressError) {
+        setSaveMessage(
+          'Assessment passed, but training progress could not be updated.'
+        );
+        setSubmitted(true);
+        return;
+      }
+    }
+
+    setSubmitted(true);
+
+    setSaveMessage(
+      passed
+        ? '✓ Assessment result saved. OHSA training completed.'
+        : 'Assessment result saved. You must achieve 80% to pass.'
+    );
+  } finally {
+    setSaving(false);
+  }
+}
   const allAnswered = answers.every((answer) => answer !== -1);
 
   return (
@@ -83,17 +176,21 @@ export default function QuizPage() {
         <div className="card">
           <button
             className="button"
-            disabled={!allAnswered}
-            onClick={() => setSubmitted(true)}
+            disabled={!allAnswered || saving}
+onClick={submitAssessment}
             style={{
               border: 0,
               cursor: allAnswered ? 'pointer' : 'not-allowed',
               opacity: allAnswered ? 1 : 0.5,
             }}
           >
-            Submit assessment
+            {saving ? 'Saving assessment...' : 'Submit assessment'}
           </button>
-
+{saveMessage && (
+  <p style={{ marginTop: 16, fontWeight: 600 }}>
+    {saveMessage}
+  </p>
+)}
           {submitted && (
             <div style={{ marginTop: 24 }}>
               <h2>
