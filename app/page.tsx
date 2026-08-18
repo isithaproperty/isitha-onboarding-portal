@@ -1,0 +1,101 @@
+import Link from 'next/link';
+import { Header } from '@/components/Header';
+import { trainingModules } from '@/lib/training';
+
+export default function Home() {
+  return (
+    <main className="shell">
+      <Header />
+
+      <section className="hero">
+        <span className="pill">Employee Portal</span>
+        <h1>Good morning</h1>
+        <p className="muted">
+          Complete your onboarding, mandatory training and policy acknowledgements.
+        </p>
+      </section>
+
+      <div className="grid">
+        <div className="card">
+          <div className="muted">Your onboarding</div>
+          <div className="metric">72%</div>
+
+          <div className="progress">
+            <div className="bar" style={{ width: '72%' }} />
+          </div>
+
+          <p>
+            <Link className="button" href="#training">
+              Continue onboarding
+            </Link>
+          </p>
+        </div>
+
+        <div className="card">
+          <div className="muted">Training status</div>
+          <div className="metric">2 / 3</div>
+          <p className="muted">One mandatory course remains.</p>
+        </div>
+
+        <div className="card">
+          <div className="muted">Compliance status</div>
+          <div className="metric">In progress</div>
+          <p className="muted">
+            Complete all required items to become compliant.
+          </p>
+        </div>
+      </div>
+
+      <section className="section">
+        <div className="card">
+          <h2>My tasks</h2>
+
+          <div className="task">
+            <span>Employment documents</span>
+            <span className="ok">✓ Complete</span>
+          </div>
+
+          <div className="task">
+            <span>HR & Employment Training</span>
+            <span className="warn">Continue</span>
+          </div>
+
+          <div className="task">
+            <span>OHSA Assessment</span>
+            <span className="warn">Required</span>
+          </div>
+
+          <div className="task">
+            <span>Emergency induction</span>
+            <span className="ok">✓ Complete</span>
+          </div>
+        </div>
+      </section>
+
+      <section id="training" className="section">
+        <h2>My training</h2>
+
+        <div className="grid">
+          {trainingModules.map((m) => (
+            <Link
+              key={m.slug}
+              className="card"
+              href={`/training/${m.slug}`}
+            >
+              <span className="pill">{m.category}</span>
+              <h3>{m.title}</h3>
+              <p className="muted">
+                {m.sections.length} sections · {m.duration}
+              </p>
+              <strong>Open training →</strong>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      <div className="footer">
+        Isitha Global staff onboarding & compliance portal
+      </div>
+    </main>
+  );
+}
