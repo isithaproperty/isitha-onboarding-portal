@@ -55,7 +55,7 @@ useEffect(() => {
   loadEmployees();
   async function loadTrainingProgress() {
   const { data, error } = await supabase
-    .from("training_progress")
+    .from("training_progress_with_names")
     .select("*");
 
   if (error) {
@@ -69,7 +69,7 @@ useEffect(() => {
   loadPolicyAcknowledgements();
   async function loadPolicyAcknowledgements() {
   const { data, error } = await supabase
-    .from("employee_document_acknowledgements")
+    .from("policy_acknowledgements_with_names")
     .select("*");
 
   if (error) {
