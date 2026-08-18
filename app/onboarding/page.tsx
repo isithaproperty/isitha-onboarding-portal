@@ -119,7 +119,21 @@ const [message, setMessage] = useState("");
     if (saveError) {
       throw saveError;
     }
+const { error: policyError } = await supabase
+  .from("employee_document_acknowledgements")
+  .insert({
+    employee_id: employee.id,
+    document_key: "hr_onboarding_policy",
+    document_title: "HR Onboarding Policy",
+    document_version: "1.0",
+    acknowledged: true,
+    acknowledged_at: new Date().toISOString(),
+  });
 
+if (policyError) {
+  throw policyError;
+}
+    006
     setSubmitted(true);
     setMessage("Your HR onboarding has been submitted successfully.");
   } catch (error) {
