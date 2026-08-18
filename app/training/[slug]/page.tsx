@@ -106,6 +106,7 @@ export default function TrainingPage() {
     );
     return;
 }
+  }      
       setMessage(
   slug === 'ohsa-awareness'
     ? '✓ Training acknowledged. You must still pass the OHSA assessment.'
