@@ -186,10 +186,18 @@ export default function TrainingPage() {
           )}
         </div>
       </section>
+<section className="section">
+  {slug === 'ohsa-awareness' && message && (
+    <div style={{ marginBottom: 16 }}>
+      <Link href="/quiz" className="button">
+        Take OHSA Assessment
+      </Link>
+    </div>
+  )}
 
-      <section className="section">
-        <Link href="/">← Back to My Portal</Link>
-      </section>
+  <Link href="/">← Back to My Portal</Link>
+</section>
+      
     </main>
   );
 }
