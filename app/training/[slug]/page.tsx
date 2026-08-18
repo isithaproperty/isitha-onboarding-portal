@@ -105,16 +105,7 @@ export default function TrainingPage() {
       'Acknowledgement saved, but progress could not be updated.'
     );
     return;
-  }
 }
-
-      if (progressError) {
-        setMessage(
-          'Acknowledgement saved, but progress could not be updated.'
-        );
-        return;
-      }
-
       setMessage(
   slug === 'ohsa-awareness'
     ? '✓ Training acknowledged. You must still pass the OHSA assessment.'
