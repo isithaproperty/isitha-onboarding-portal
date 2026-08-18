@@ -83,21 +83,30 @@ export default function TrainingPage() {
         return;
       }
 
-      const { error: progressError } = await supabase
-        .from('training_progress')
-        .upsert(
-          {
-            employee_id: employee.id,
-            course_id: course.id,
-            status: 'completed',
-            progress_percent: 100,
-            completed_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          },
-          {
-            onConflict: 'employee_id,course_id',
-          }
-        );
+      if (slug !== 'ohsa-awareness') {
+  const { error: progressError } = await supabase
+    .from('training_progress')
+    .upsert(
+      {
+        employee_id: employee.id,
+        course_id: course.id,
+        status: 'completed',
+        progress_percent: 100,
+        completed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      {
+        onConflict: 'employee_id,course_id',
+      }
+    );
+
+  if (progressError) {
+    setMessage(
+      'Acknowledgement saved, but progress could not be updated.'
+    );
+    return;
+  }
+}
 
       if (progressError) {
         setMessage(
@@ -106,7 +115,11 @@ export default function TrainingPage() {
         return;
       }
 
-      setMessage('✓ Training successfully acknowledged and completed.');
+      setMessage(
+  slug === 'ohsa-awareness'
+    ? '✓ Training acknowledged. You must still pass the OHSA assessment.'
+    : '✓ Training successfully acknowledged and completed.'
+);
     } finally {
       setSaving(false);
     }
