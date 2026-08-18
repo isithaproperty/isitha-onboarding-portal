@@ -97,30 +97,30 @@ return (
             >
               <thead>
                 <tr>
-                  <th style={th}>Employee</th>
-                  <th style={th}>Client</th>
-                  <th style={th}>Onboarding</th>
-                  <th style={th}>OHSA</th>
-                  <th style={th}>Policies</th>
-                  <th style={th}>Quiz</th>
-                  <th style={th}>Status</th>
+                <th style={th}>Employee</th>
+<th style={th}>Email</th>
+<th style={th}>Mobile</th>
+<th style={th}>Declaration</th>
+<th style={th}>Status</th>
                 </tr>
               </thead>
 
               <tbody>
-                {employees.map((employee) => (
-                  <tr key={employee.name}>
+                {realEmployees.map((employee) => (
+                  <tr key={employee.id}>
                     <td style={td}>
-                      <strong>{employee.name}</strong>
+                      <strong>
+  {employee.legal_first_name} {employee.legal_last_name}
+</strong>
                     </td>
-                    <td style={td}>{employee.client}</td>
-                    <td style={td}>{employee.onboarding}</td>
-                    <td style={td}>{employee.ohsa}</td>
-                    <td style={td}>{employee.policies}</td>
-                    <td style={td}>{employee.quiz}</td>
-                    <td style={td}>
-                      <strong>{employee.status}</strong>
-                    </td>
+                    <td style={td}>{employee.personal_email}</td>
+<td style={td}>{employee.mobile_number}</td>
+<td style={td}>
+  {employee.declaration_accepted ? "Accepted" : "Outstanding"}
+</td>
+<td style={td}>
+  <strong>{employee.status}</strong>
+</td>
                   </tr>
                 ))}
               </tbody>
