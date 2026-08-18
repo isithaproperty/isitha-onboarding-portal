@@ -36,6 +36,7 @@ const employees = [
 
 export default function AdminPage() {
   const [realEmployees, setRealEmployees] = useState<any[]>([]);
+  const [trainingProgress, setTrainingProgress] = useState<any[]>([]);
 
 useEffect(() => {
   async function loadEmployees() {
@@ -52,6 +53,19 @@ useEffect(() => {
   }
 
   loadEmployees();
+  async function loadTrainingProgress() {
+  const { data, error } = await supabase
+    .from("training_progress")
+    .select("*");
+
+  if (error) {
+    console.error("Error loading training progress:", error);
+    return;
+  }
+
+  setTrainingProgress(data || []);
+}
+  loadTrainingProgress();
 }, []);
 
 return (
@@ -101,6 +115,7 @@ return (
 <th style={th}>Email</th>
 <th style={th}>Mobile</th>
 <th style={th}>Declaration</th>
+<th style={th}>Training</th>
 <th style={th}>Status</th>
                 </tr>
               </thead>
@@ -118,6 +133,12 @@ return (
 <td style={td}>
   {employee.declaration_accepted ? "Accepted" : "Outstanding"}
 </td>
+  <td style={td}>
+  {trainingProgress
+    .filter((t) => t.employee_id === employee.id)
+    .map((t) => `${t.progress_percent}%`)
+    .join(", ") || "Not started"}
+</td>                  
 <td style={td}>
   <strong>{employee.status}</strong>
 </td>
