@@ -66,6 +66,7 @@ useEffect(() => {
   setTrainingProgress(data || []);
 }
   loadTrainingProgress();
+  loadPolicyAcknowledgements();
   async function loadPolicyAcknowledgements() {
   const { data, error } = await supabase
     .from("employee_document_acknowledgements")
