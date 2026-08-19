@@ -36,14 +36,11 @@ export default function AdminPage() {
 
       if (employeesResult.error) console.error("Error loading employees:", employeesResult.error);
       else setRealEmployees(employeesResult.data || []);
-
       if (trainingResult.error) console.error("Error loading training progress:", trainingResult.error);
       else setTrainingProgress(trainingResult.data || []);
-
       if (policyResult.error) console.error("Error loading policy acknowledgements:", policyResult.error);
       else setPolicyAcknowledgements(policyResult.data || []);
     }
-
     loadAdminData();
   }, []);
 
@@ -52,7 +49,6 @@ export default function AdminPage() {
     setSavingStaff(true);
     setStaffMessage("");
     setStaffError("");
-
     const form = event.currentTarget;
     const formData = new FormData(form);
 
@@ -64,88 +60,46 @@ export default function AdminPage() {
           firstName: formData.get("firstName"),
           lastName: formData.get("lastName"),
           email: formData.get("email"),
-          jobTitle: formData.get("jobTitle"),
-          employeeNumber: formData.get("employeeNumber"),
-          startDate: formData.get("startDate"),
         }),
       });
-
       const result = (await response.json()) as { message?: string; error?: string };
       if (!response.ok) setStaffError(result.error || "Unable to add staff.");
-      else {
-        setStaffMessage(result.message || "Staff member added successfully.");
-        form.reset();
-      }
+      else { setStaffMessage(result.message || "Staff member added successfully."); form.reset(); }
     } catch {
       setStaffError("Unable to contact the server. Please try again.");
-    } finally {
-      setSavingStaff(false);
-    }
+    } finally { setSavingStaff(false); }
   }
 
   return (
     <main className="shell">
       <Header />
-
       <section className="hero">
-        <span className="pill">HR Admin</span>
-        <h1>Compliance Dashboard</h1>
+        <span className="pill">HR Admin</span><h1>Compliance Dashboard</h1>
         <p className="muted">Monitor onboarding, training and staff compliance.</p>
       </section>
-
       <div className="grid">
         <div className="card"><div className="muted">Onboarding records</div><div className="metric">{realEmployees.length}</div></div>
         <div className="card"><div className="muted">Declarations accepted</div><div className="metric">{realEmployees.filter((employee) => employee.declaration_accepted).length}</div></div>
         <div className="card"><div className="muted">Onboarding outstanding</div><div className="metric">{realEmployees.filter((employee) => !employee.declaration_accepted).length}</div></div>
       </div>
-
-      <section className="section">
-        <div className="card">
-          <h2>Add New Staff</h2>
-          <p className="muted">Create the employee record and send the employee a secure invitation to set up their portal login.</p>
-
-          <form onSubmit={handleAddStaff} className="admin-form">
-            <label>First name<input name="firstName" required autoComplete="given-name" /></label>
-            <label>Last name<input name="lastName" required autoComplete="family-name" /></label>
-            <label>Work email<input name="email" type="email" required autoComplete="email" /></label>
-            <label>Job title<input name="jobTitle" /></label>
-            <label>Employee number<input name="employeeNumber" /></label>
-            <label>Start date<input name="startDate" type="date" /></label>
-            <div className="admin-form-actions">
-              <button className="button" type="submit" disabled={savingStaff}>
-                {savingStaff ? "Adding staff..." : "Add staff and send invite"}
-              </button>
-            </div>
-          </form>
-
-          {staffMessage && <p className="ok">{staffMessage}</p>}
-          {staffError && <p className="warn">{staffError}</p>}
-        </div>
-      </section>
-
-      <section className="section">
-        <div className="card">
-          <h2>Employee Compliance</h2>
-          <div style={{ overflowX: "auto" }}>
-            <table className="admin-table">
-              <thead><tr><th>Employee</th><th>Email</th><th>Mobile</th><th>Declaration</th><th>Training</th><th>Policies</th><th>Status</th></tr></thead>
-              <tbody>
-                {realEmployees.map((employee) => (
-                  <tr key={employee.id}>
-                    <td><strong>{employee.legal_first_name} {employee.legal_last_name}</strong></td>
-                    <td>{employee.personal_email}</td>
-                    <td>{employee.mobile_number}</td>
-                    <td>{employee.declaration_accepted ? "Accepted" : "Outstanding"}</td>
-                    <td>{trainingProgress.filter((item) => item.employee_id === employee.employee_id).map((item) => `${item.progress_percent}%`).join(", ") || "Not started"}</td>
-                    <td>{policyAcknowledgements.some((item) => item.employee_id === employee.employee_id) ? "Accepted" : "Outstanding"}</td>
-                    <td><strong>{employee.status}</strong></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
+      <section className="section"><div className="card">
+        <h2>Add New Staff</h2>
+        <p className="muted">Create the employee login and send a secure invitation. The employee completes their remaining HR details during onboarding.</p>
+        <form onSubmit={handleAddStaff} className="admin-form">
+          <label>First name<input name="firstName" required autoComplete="given-name" /></label>
+          <label>Last name<input name="lastName" required autoComplete="family-name" /></label>
+          <label>Work email<input name="email" type="email" required autoComplete="email" /></label>
+          <div className="admin-form-actions"><button className="button" type="submit" disabled={savingStaff}>{savingStaff ? "Adding staff..." : "Add staff and send invite"}</button></div>
+        </form>
+        {staffMessage && <p className="ok">{staffMessage}</p>}{staffError && <p className="warn">{staffError}</p>}
+      </div></section>
+      <section className="section"><div className="card"><h2>Employee Compliance</h2><div style={{ overflowX: "auto" }}>
+        <table className="admin-table"><thead><tr><th>Employee</th><th>Email</th><th>Mobile</th><th>Declaration</th><th>Training</th><th>Policies</th><th>Status</th></tr></thead><tbody>
+          {realEmployees.map((employee) => <tr key={employee.id}>
+            <td><strong>{employee.legal_first_name} {employee.legal_last_name}</strong></td><td>{employee.personal_email}</td><td>{employee.mobile_number}</td><td>{employee.declaration_accepted ? "Accepted" : "Outstanding"}</td><td>{trainingProgress.filter((item) => item.employee_id === employee.employee_id).map((item) => `${item.progress_percent}%`).join(", ") || "Not started"}</td><td>{policyAcknowledgements.some((item) => item.employee_id === employee.employee_id) ? "Accepted" : "Outstanding"}</td><td><strong>{employee.status}</strong></td>
+          </tr>)}
+        </tbody></table>
+      </div></div></section>
     </main>
   );
 }
