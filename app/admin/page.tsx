@@ -15,13 +15,30 @@ type Employee = {
   status?: string;
 };
 
-type TrainingProgress = { employee_id: string; progress_percent: number };
+type TrainingProgress = {
+  employee_id: string;
+  progress_percent: number;
+  title?: string;
+  course_title?: string;
+  slug?: string;
+  completed_at?: string;
+};
 type PolicyAcknowledgement = { employee_id: string };
+
+const courseLabel = (item: TrainingProgress, index: number) => {
+  const text = `${item.slug || ""} ${item.title || ""} ${item.course_title || ""}`.toLowerCase();
+  if (text.includes("ohsa")) return "OHSA";
+  if (text.includes("emergency")) return "Emergency";
+  if (text.includes("employment") || text.includes("hr")) return "HR";
+  if (text.includes("popia") || text.includes("data protection")) return "POPIA";
+  return ["OHSA", "Emergency", "HR", "POPIA"][index] || `Course ${index + 1}`;
+};
 
 export default function AdminPage() {
   const [realEmployees, setRealEmployees] = useState<Employee[]>([]);
   const [trainingProgress, setTrainingProgress] = useState<TrainingProgress[]>([]);
   const [policyAcknowledgements, setPolicyAcknowledgements] = useState<PolicyAcknowledgement[]>([]);
+  const [expandedEmployee, setExpandedEmployee] = useState<string | null>(null);
   const [savingStaff, setSavingStaff] = useState(false);
   const [staffMessage, setStaffMessage] = useState("");
   const [staffError, setStaffError] = useState("");
@@ -56,48 +73,42 @@ export default function AdminPage() {
       const response = await fetch("/api/admin/staff", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          firstName: formData.get("firstName"),
-          lastName: formData.get("lastName"),
-          email: formData.get("email"),
-        }),
+        body: JSON.stringify({ firstName: formData.get("firstName"), lastName: formData.get("lastName"), email: formData.get("email") }),
       });
       const result = (await response.json()) as { message?: string; error?: string };
       if (!response.ok) setStaffError(result.error || "Unable to add staff.");
       else { setStaffMessage(result.message || "Staff member added successfully."); form.reset(); }
-    } catch {
-      setStaffError("Unable to contact the server. Please try again.");
-    } finally { setSavingStaff(false); }
+    } catch { setStaffError("Unable to contact the server. Please try again."); }
+    finally { setSavingStaff(false); }
   }
 
   return (
     <main className="shell">
       <Header />
-      <section className="hero">
-        <span className="pill">HR Admin</span><h1>Compliance Dashboard</h1>
-        <p className="muted">Monitor onboarding, training and staff compliance.</p>
-      </section>
+      <section className="hero"><span className="pill">HR Admin</span><h1>Compliance Dashboard</h1><p className="muted">Monitor onboarding, training and staff compliance.</p></section>
       <div className="grid">
         <div className="card"><div className="muted">Onboarding records</div><div className="metric">{realEmployees.length}</div></div>
         <div className="card"><div className="muted">Declarations accepted</div><div className="metric">{realEmployees.filter((employee) => employee.declaration_accepted).length}</div></div>
         <div className="card"><div className="muted">Onboarding outstanding</div><div className="metric">{realEmployees.filter((employee) => !employee.declaration_accepted).length}</div></div>
       </div>
       <section className="section"><div className="card">
-        <h2>Add New Staff</h2>
-        <p className="muted">Create the employee login and send a secure invitation. The employee completes their remaining HR details during onboarding.</p>
+        <h2>Add New Staff</h2><p className="muted">Create the employee login and send a secure invitation. The employee completes their remaining HR details during onboarding.</p>
         <form onSubmit={handleAddStaff} className="admin-form">
-          <label>First name<input name="firstName" required autoComplete="given-name" /></label>
-          <label>Last name<input name="lastName" required autoComplete="family-name" /></label>
-          <label>Work email<input name="email" type="email" required autoComplete="email" /></label>
+          <label>First name<input name="firstName" required autoComplete="given-name" /></label><label>Last name<input name="lastName" required autoComplete="family-name" /></label><label>Work email<input name="email" type="email" required autoComplete="email" /></label>
           <div className="admin-form-actions"><button className="button" type="submit" disabled={savingStaff}>{savingStaff ? "Adding staff..." : "Add staff and send invite"}</button></div>
-        </form>
-        {staffMessage && <p className="ok">{staffMessage}</p>}{staffError && <p className="warn">{staffError}</p>}
+        </form>{staffMessage && <p className="ok">{staffMessage}</p>}{staffError && <p className="warn">{staffError}</p>}
       </div></section>
-      <section className="section"><div className="card"><h2>Employee Compliance</h2><div style={{ overflowX: "auto" }}>
-        <table className="admin-table"><thead><tr><th>Employee</th><th>Email</th><th>Mobile</th><th>Declaration</th><th>Training</th><th>Policies</th><th>Status</th></tr></thead><tbody>
-          {realEmployees.map((employee) => <tr key={employee.id}>
-            <td><strong>{employee.legal_first_name} {employee.legal_last_name}</strong></td><td>{employee.personal_email}</td><td>{employee.mobile_number}</td><td>{employee.declaration_accepted ? "Accepted" : "Outstanding"}</td><td>{trainingProgress.filter((item) => item.employee_id === employee.employee_id).map((item) => `${item.progress_percent}%`).join(", ") || "Not started"}</td><td>{policyAcknowledgements.some((item) => item.employee_id === employee.employee_id) ? "Accepted" : "Outstanding"}</td><td><strong>{employee.status}</strong></td>
-          </tr>)}
+      <section className="section"><div className="card"><h2>Employee Compliance</h2><p className="muted">Select an employee to view their training breakdown and compliance record.</p><div style={{ overflowX: "auto" }}>
+        <table className="admin-table"><thead><tr><th>Employee</th><th>Email</th><th>Mobile</th><th>Declaration</th><th>Training</th><th>Policies</th><th>Status</th><th>Details</th></tr></thead><tbody>
+          {realEmployees.map((employee) => {
+            const employeeTraining = trainingProgress.filter((item) => item.employee_id === employee.employee_id);
+            const trainingSummary = employeeTraining.length ? employeeTraining.map((item, index) => `${courseLabel(item, index)}: ${item.progress_percent}%`).join(" | ") : "Not started";
+            const expanded = expandedEmployee === employee.id;
+            return <>
+              <tr key={employee.id}><td><strong>{employee.legal_first_name} {employee.legal_last_name}</strong></td><td>{employee.personal_email}</td><td>{employee.mobile_number}</td><td>{employee.declaration_accepted ? "Accepted" : "Outstanding"}</td><td>{trainingSummary}</td><td>{policyAcknowledgements.some((item) => item.employee_id === employee.employee_id) ? "Accepted" : "Outstanding"}</td><td><strong>{employee.status}</strong></td><td><button className="button" type="button" onClick={() => setExpandedEmployee(expanded ? null : employee.id)}>{expanded ? "Hide" : "View"}</button></td></tr>
+              {expanded && <tr key={`${employee.id}-details`}><td colSpan={8}><div className="card" style={{ margin: "12px 0" }}><h3>Compliance record</h3><p><strong>Declaration:</strong> {employee.declaration_accepted ? "Accepted" : "Outstanding"}</p><p><strong>Policies:</strong> {policyAcknowledgements.some((item) => item.employee_id === employee.employee_id) ? "Accepted" : "Outstanding"}</p><p><strong>Training:</strong></p>{employeeTraining.length ? employeeTraining.map((item, index) => <p key={`${employee.id}-${index}`}>{courseLabel(item, index)}: <strong>{item.progress_percent}%</strong>{item.completed_at ? ` — completed ${new Date(item.completed_at).toLocaleDateString()}` : ""}</p>) : <p>Training not started.</p>}</div></td></tr>}
+            </>;
+          })}
         </tbody></table>
       </div></div></section>
     </main>
