@@ -1,5 +1,5 @@
 export const popiaTrainingModule = {
-  slug: 'popia-staff-training',
+  slug: 'popia-data-protection',
   title: 'POPIA & Data Protection Training',
   category: 'Privacy & Data Protection',
   duration: '25–35 min',
