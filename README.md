@@ -17,6 +17,12 @@ Starter Next.js portal for live employee onboarding, training, acknowledgements,
 3. `npm run dev`
 
 ## Supabase
-Run `supabase/schema.sql` in the Supabase SQL editor.
+The portal uses Supabase Auth, the existing `employees` table and the onboarding/training tables.
 
-The UI currently uses seed/demo data so it renders before Supabase authentication is wired in. The next implementation step is Supabase Auth + replacing demo status values with live employee records.
+To enable **Admin → Add New Staff**, configure these server-side Vercel variables:
+
+- `SUPABASE_SERVICE_ROLE_KEY` (never expose this as a `NEXT_PUBLIC_` variable)
+- `ADMIN_EMAILS` (comma-separated manager email addresses)
+- `NEXT_PUBLIC_SITE_URL` (the deployed portal URL used by the invitation email)
+
+Managers may alternatively be authorised with an `admin`, `manager`, `hr_admin` or `compliance_admin` role in Supabase Auth app metadata or the existing `profiles.role` field. New employees receive a Supabase invitation email and are linked to `employees.auth_user_id` automatically.
