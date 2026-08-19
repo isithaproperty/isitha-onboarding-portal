@@ -110,7 +110,6 @@ export async function POST(request: Request) {
       job_title: jobTitle || null,
       employee_number: employeeNumber || null,
       start_date: startDate || null,
-      active: true,
     });
 
     if (employeeError) {
