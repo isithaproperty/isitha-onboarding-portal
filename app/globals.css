@@ -122,3 +122,19 @@ a {
   color: #667085;
   font-size: 14px;
 }
+
+.admin-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 18px;
+  margin-top: 22px;
+}
+
+.admin-form label { display: grid; gap: 7px; font-weight: 600; }
+.admin-form input { width: 100%; padding: 11px 12px; border: 1px solid #d1d5db; border-radius: 8px; background: #fff; font: inherit; }
+.admin-form-actions { grid-column: 1 / -1; }
+.admin-form-actions .button { border: 0; cursor: pointer; }
+.admin-form-actions .button:disabled { cursor: not-allowed; opacity: 0.6; }
+.admin-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+.admin-table th { padding: 12px; border-bottom: 2px solid #e5e7eb; text-align: left; font-size: 14px; }
+.admin-table td { padding: 14px 12px; border-bottom: 1px solid #e5e7eb; font-size: 14px; }
