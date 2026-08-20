@@ -19,6 +19,8 @@ type Balance = {
   sick_days_remaining?: number;
 };
 
+type BalanceResponse = { balances?: Balance[]; error?: string };
+
 export default function StaffLeaveOverview() {
   const router = useRouter();
   const [balances, setBalances] = useState<Balance[]>([]);
@@ -39,25 +41,18 @@ export default function StaffLeaveOverview() {
     }
 
     setAllowed(true);
-    const [annualResult, sickResult] = await Promise.all([
-      supabase.from('employee_leave_balances').select('employee_id,first_name,last_name,annual_leave_entitlement,approved_days,pending_days,remaining_days').order('first_name').order('last_name'),
-      supabase.from('employee_sick_leave_balances').select('employee_id,sick_leave_entitlement,sick_days_taken,sick_days_remaining'),
-    ]);
-
-    if (annualResult.error) {
-      setErrorMessage(annualResult.error.message);
-      setLoading(false);
-      return;
+    try {
+      const response = await fetch('/api/admin/leave-balances', { cache: 'no-store' });
+      const data = await response.json() as BalanceResponse;
+      if (!response.ok) {
+        setErrorMessage(data.error || 'Unable to load staff leave balances.');
+        setLoading(false);
+        return;
+      }
+      setBalances(data.balances || []);
+    } catch {
+      setErrorMessage('Unable to load staff leave balances.');
     }
-
-    if (sickResult.error) {
-      setErrorMessage(sickResult.error.message);
-      setLoading(false);
-      return;
-    }
-
-    const sickMap = new Map((sickResult.data || []).map((row) => [row.employee_id, row]));
-    setBalances((annualResult.data || []).map((row) => ({ ...row, ...(sickMap.get(row.employee_id) || {}) })) as Balance[]);
     setLoading(false);
   }
 
