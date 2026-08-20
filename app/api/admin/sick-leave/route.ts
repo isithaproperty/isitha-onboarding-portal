@@ -25,7 +25,7 @@ export async function GET() {
     if (!authorised) return NextResponse.json({ error: 'Only authorised HR/Admin users can view sick leave balances.' }, { status: 403 });
 
     const admin = createSupabaseAdminClient();
-    const { data, error } = await admin.from('sick_leave_balances').select('*').order('first_name').order('last_name');
+    const { data, error } = await admin.from('employee_sick_leave_balances').select('*').order('first_name').order('last_name');
     if (error) throw error;
     return NextResponse.json({ balances: data || [] });
   } catch (error) {
