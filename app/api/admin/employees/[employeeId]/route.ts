@@ -39,6 +39,14 @@ export async function PATCH(request: Request, context: { params: Promise<{ emplo
     if (status && !ALLOWED_STATUSES.has(status)) return NextResponse.json({ error: 'Invalid employment status.' }, { status: 400 });
     if (role && !ALLOWED_ROLES.has(role)) return NextResponse.json({ error: 'Invalid portal role.' }, { status: 400 });
 
+    let annualLeaveEntitlement: number | undefined;
+    if (body.annualLeaveEntitlement !== undefined && body.annualLeaveEntitlement !== null && body.annualLeaveEntitlement !== '') {
+      annualLeaveEntitlement = Number(body.annualLeaveEntitlement);
+      if (!Number.isFinite(annualLeaveEntitlement) || annualLeaveEntitlement < 0 || annualLeaveEntitlement > 365) {
+        return NextResponse.json({ error: 'Annual leave entitlement must be between 0 and 365 days.' }, { status: 400 });
+      }
+    }
+
     const updates: Record<string, string> = { updated_at: new Date().toISOString() };
     if (body.firstName !== undefined) updates.legal_first_name = clean(body.firstName);
     if (body.lastName !== undefined) updates.legal_last_name = clean(body.lastName);
@@ -50,16 +58,31 @@ export async function PATCH(request: Request, context: { params: Promise<{ emplo
     if (error) throw error;
     if (!data) return NextResponse.json({ error: 'Employee onboarding record was not found.' }, { status: 404 });
 
+    if (annualLeaveEntitlement !== undefined) {
+      const { error: leaveError } = await admin
+        .from('employees')
+        .update({ annual_leave_entitlement: annualLeaveEntitlement })
+        .eq('id', employeeId);
+      if (leaveError) throw leaveError;
+    }
+
     if (role) {
-      const { data: authUser, error: authLookupError } = await admin.auth.admin.getUserById(employeeId);
+      const { data: staffRecord, error: staffLookupError } = await admin
+        .from('employees')
+        .select('auth_user_id')
+        .eq('id', employeeId)
+        .maybeSingle();
+      if (staffLookupError) throw staffLookupError;
+      const authUserId = staffRecord?.auth_user_id || employeeId;
+      const { data: authUser, error: authLookupError } = await admin.auth.admin.getUserById(authUserId);
       if (authLookupError) throw authLookupError;
       if (!authUser.user) return NextResponse.json({ error: 'This employee is not linked to a portal login.' }, { status: 400 });
       const appMetadata = { ...(authUser.user.app_metadata || {}), role };
-      const { error: roleError } = await admin.auth.admin.updateUserById(employeeId, { app_metadata: appMetadata });
+      const { error: roleError } = await admin.auth.admin.updateUserById(authUserId, { app_metadata: appMetadata });
       if (roleError) throw roleError;
     }
 
-    return NextResponse.json({ employee: { ...data, role: role || undefined }, message: 'Employee record updated.' });
+    return NextResponse.json({ employee: { ...data, role: role || undefined, annual_leave_entitlement: annualLeaveEntitlement }, message: 'Employee record updated.' });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to update employee.' }, { status: 500 });
   }
