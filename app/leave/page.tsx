@@ -17,16 +17,38 @@ type LeaveRequest = {
   created_at?:string;
 };
 
+type LeaveBalance = {
+  annual_leave_entitlement:number;
+  approved_days:number;
+  pending_days:number;
+  remaining_days:number;
+};
+
 export default function LeavePage() {
   const router = useRouter();
   const [employeeId,setEmployeeId]=useState('');
   const [requests,setRequests]=useState<LeaveRequest[]>([]);
+  const [balance,setBalance]=useState<LeaveBalance|null>(null);
   const [message,setMessage]=useState('');
   const [errorMessage,setErrorMessage]=useState('');
   const [submitting,setSubmitting]=useState(false);
   const [loadingRequests,setLoadingRequests]=useState(true);
 
   useEffect(()=>{ load(); },[]);
+
+  async function loadBalance(id:string){
+    const {data,error}=await supabase
+      .from('employee_leave_balances')
+      .select('annual_leave_entitlement,approved_days,pending_days,remaining_days')
+      .eq('employee_id',id)
+      .maybeSingle();
+
+    if(error){
+      setErrorMessage(`Your leave balance could not be loaded: ${error.message}`);
+      return;
+    }
+    if(data) setBalance(data as LeaveBalance);
+  }
 
   async function loadRequests(id:string){
     setLoadingRequests(true);
@@ -50,9 +72,6 @@ export default function LeavePage() {
     const {data:{user}}=await supabase.auth.getUser();
     if(!user){router.push('/login');return;}
 
-    // Use the same employee lookup as the main portal: first try the
-    // authenticated user's id, then fall back to their login email. This
-    // supports invited staff whose employee row predates their Auth account.
     let {data:employee}=await supabase
       .from('employees')
       .select('id')
@@ -75,7 +94,7 @@ export default function LeavePage() {
     }
 
     setEmployeeId(employee.id);
-    await loadRequests(employee.id);
+    await Promise.all([loadRequests(employee.id),loadBalance(employee.id)]);
   }
 
   async function submit(e:FormEvent<HTMLFormElement>){
@@ -132,10 +151,16 @@ export default function LeavePage() {
     setMessage('✓ Leave request submitted successfully and is awaiting manager approval.');
     setSubmitting(false);
 
-    await loadRequests(employeeId);
+    await Promise.all([loadRequests(employeeId),loadBalance(employeeId)]);
   }
 
   return <main className="shell"><Header/><section className="hero"><span className="pill">Leave</span><h1>My Leave</h1><p className="muted">Request leave and track your manager's decision. You can only see your own leave records.</p></section>
+    <section className="section"><h2>Annual Leave Balance</h2><div className="grid">
+      <div className="card"><div className="muted">Entitlement</div><div className="metric">{balance?.annual_leave_entitlement ?? 0}</div><p className="muted">days per year</p></div>
+      <div className="card"><div className="muted">Taken</div><div className="metric">{balance?.approved_days ?? 0}</div><p className="muted">approved weekdays</p></div>
+      <div className="card"><div className="muted">Pending</div><div className="metric">{balance?.pending_days ?? 0}</div><p className="muted">awaiting approval</p></div>
+      <div className="card"><div className="muted">Remaining</div><div className="metric">{balance?.remaining_days ?? 0}</div><p className="muted">days available</p></div>
+    </div></section>
     <section className="section"><div className="card"><h2>Request Leave</h2><form onSubmit={submit} className="grid">
       <label>Leave type<select name="leave_type" required defaultValue="annual"><option value="annual">Annual leave</option><option value="sick">Sick leave</option><option value="family_responsibility">Family responsibility</option><option value="unpaid">Unpaid leave</option><option value="other">Other</option></select></label>
       <label>Start date<input type="date" name="start_date" required/></label><label>End date<input type="date" name="end_date" required/></label>
