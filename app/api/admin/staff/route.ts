@@ -46,11 +46,11 @@ async function isAuthorisedManager(
 function getInviteRedirect(request: Request) {
   const configuredSite = clean(process.env.NEXT_PUBLIC_SITE_URL);
   if (configuredSite && !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(configuredSite)) {
-    return `${configuredSite.replace(/\/$/, '')}/login`;
+    return `${configuredSite.replace(/\/$/, '')}/set-password`;
   }
 
   const origin = new URL(request.url).origin;
-  return `${origin.replace(/\/$/, '')}/login`;
+  return `${origin.replace(/\/$/, '')}/set-password`;
 }
 
 export async function POST(request: Request) {
