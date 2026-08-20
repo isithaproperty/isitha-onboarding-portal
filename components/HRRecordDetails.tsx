@@ -24,6 +24,7 @@ type Employee = {
 };
 
 type TrainingProgress = {
+  employee_id: string;
   progress_percent: number;
   title?: string;
   slug?: string;
