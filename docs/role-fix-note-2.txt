@@ -1,0 +1,1 @@
+Post-merge fix: role management uses Supabase Auth app_metadata via employees.auth_user_id because this project has no profiles table.
