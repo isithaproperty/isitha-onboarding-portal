@@ -4,19 +4,14 @@ import { cookies } from 'next/headers';
 import { createSupabaseAdminClient } from '@/lib/supabase-admin';
 
 const ADMIN_ROLES = new Set(['admin', 'manager', 'hr_admin', 'compliance_admin']);
-
-function clean(value: unknown) {
-  return typeof value === 'string' ? value.trim() : '';
-}
+function clean(value: unknown) { return typeof value === 'string' ? value.trim() : ''; }
 
 async function getAuthenticatedUser() {
   const cookieStore = await cookies();
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !publishableKey) throw new Error('Supabase public credentials are not configured.');
-  const client = createServerClient(url, publishableKey, {
-    cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} },
-  });
+  const client = createServerClient(url, publishableKey, { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } });
   const { data: { user }, error } = await client.auth.getUser();
   return error ? null : user;
 }
@@ -34,26 +29,24 @@ export async function GET() {
     const user = await getAuthenticatedUser();
     if (!user) return NextResponse.json({ error: 'Please sign in again.' }, { status: 401 });
     const admin = createSupabaseAdminClient();
-    if (!(await isAuthorisedManager(admin, user))) {
-      return NextResponse.json({ error: 'Only an authorised manager can view employee compliance records.' }, { status: 403 });
-    }
+    if (!(await isAuthorisedManager(admin, user))) return NextResponse.json({ error: 'Only an authorised manager can view employee compliance records.' }, { status: 403 });
 
-    const [employeesResult, trainingResult, coursesResult, policyResult] = await Promise.all([
+    const [employeesResult, trainingResult, coursesResult, policyResult, profilesResult] = await Promise.all([
       admin.from('employee_hr_onboarding').select('id,employee_id,legal_first_name,legal_last_name,personal_email,mobile_number,declaration_accepted,status'),
       admin.from('training_progress').select('employee_id,course_id,progress_percent,completed_at'),
       admin.from('training_courses').select('id,slug,title'),
       admin.from('employee_document_acknowledgements').select('employee_id,acknowledged'),
+      admin.from('profiles').select('id,role'),
     ]);
-
-    const error = employeesResult.error || trainingResult.error || coursesResult.error || policyResult.error;
+    const error = employeesResult.error || trainingResult.error || coursesResult.error || policyResult.error || profilesResult.error;
     if (error) throw error;
     const courses = new Map((coursesResult.data || []).map((course) => [course.id, course]));
+    const roles = new Map((profilesResult.data || []).map((profile) => [profile.id, profile.role || 'staff']));
+    const employees = (employeesResult.data || []).map((employee) => ({ ...employee, role: roles.get(employee.employee_id) || 'staff' }));
     const training = (trainingResult.data || []).map((item) => ({ ...item, ...(courses.get(item.course_id) || {}) }));
     const policies = (policyResult.data || []).filter((item) => item.acknowledged).map((item) => ({ employee_id: item.employee_id }));
-
-    return NextResponse.json({ employees: employeesResult.data || [], training, policies });
+    return NextResponse.json({ employees, training, policies });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unable to load compliance records.';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to load compliance records.' }, { status: 500 });
   }
 }
