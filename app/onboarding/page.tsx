@@ -23,7 +23,7 @@ export default function OnboardingPage() {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) throw new Error("You must be signed in to submit onboarding.");
 
-      const { data: employee, error: employeeError } = await supabase.from("employees").select("id").eq("auth_user_id", user.id).single();
+      const { data: employee, error: employeeError } = await supabase.from("employees").select("id").eq("id", user.id).single();
       if (employeeError || !employee) throw new Error("Employee record could not be found.");
 
       const idFile = formData.get("id_document") as File;
