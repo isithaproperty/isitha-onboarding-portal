@@ -43,6 +43,16 @@ async function isAuthorisedManager(
   return ADMIN_ROLES.has(clean(user.app_metadata?.role).toLowerCase());
 }
 
+function getInviteRedirect(request: Request) {
+  const configuredSite = clean(process.env.NEXT_PUBLIC_SITE_URL);
+  if (configuredSite && !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(configuredSite)) {
+    return `${configuredSite.replace(/\/$/, '')}/login`;
+  }
+
+  const origin = new URL(request.url).origin;
+  return `${origin.replace(/\/$/, '')}/login`;
+}
+
 export async function POST(request: Request) {
   try {
     const requestingUser = await getAuthenticatedUser();
@@ -66,9 +76,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Please select a valid portal role.' }, { status: 400 });
     }
 
-    const redirectTo = process.env.NEXT_PUBLIC_SITE_URL
-      ? `${process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, '')}/login`
-      : undefined;
+    const redirectTo = getInviteRedirect(request);
 
     const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
       data: { first_name: firstName, last_name: lastName, full_name: `${firstName} ${lastName}` },
