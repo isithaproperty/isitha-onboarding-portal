@@ -50,13 +50,25 @@ export default function LeavePage() {
     const {data:{user}}=await supabase.auth.getUser();
     if(!user){router.push('/login');return;}
 
-    const {data:employee,error}=await supabase
+    // Use the same employee lookup as the main portal: first try the
+    // authenticated user's id, then fall back to their login email. This
+    // supports invited staff whose employee row predates their Auth account.
+    let {data:employee}=await supabase
       .from('employees')
       .select('id')
-      .eq('auth_user_id',user.id)
-      .single();
+      .eq('id',user.id)
+      .maybeSingle();
 
-    if(error||!employee){
+    if(!employee&&user.email){
+      const byEmail=await supabase
+        .from('employees')
+        .select('id')
+        .eq('email',user.email.toLowerCase())
+        .maybeSingle();
+      employee=byEmail.data;
+    }
+
+    if(!employee){
       setErrorMessage('Your employee profile could not be found. Please contact HR.');
       setLoadingRequests(false);
       return;
