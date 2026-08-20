@@ -31,7 +31,7 @@ export async function GET() {
 
     const [employeesResult, staffResult, trainingResult, coursesResult, policyResult, usersResult] = await Promise.all([
       admin.from('employee_hr_onboarding').select('*'),
-      admin.from('employees').select('id,auth_user_id'),
+      admin.from('employees').select('id,auth_user_id,annual_leave_entitlement'),
       admin.from('training_progress').select('employee_id,course_id,progress_percent,completed_at'),
       admin.from('training_courses').select('id,slug,title'),
       admin.from('employee_document_acknowledgements').select('employee_id,acknowledged'),
@@ -42,18 +42,23 @@ export async function GET() {
     if (error) throw error;
 
     const authById = new Map((usersResult.data.users || []).map((authUser) => [authUser.id, authUser]));
-    const authUserByEmployee = new Map((staffResult.data || []).map((employee) => [employee.id, employee.auth_user_id]));
+    const staffByEmployee = new Map((staffResult.data || []).map((employee) => [employee.id, employee]));
     const courses = new Map((coursesResult.data || []).map((course) => [course.id, course]));
 
     const employees = await Promise.all((employeesResult.data || []).map(async (employee) => {
-      const authUserId = authUserByEmployee.get(employee.employee_id);
-      const authUser = authUserId ? authById.get(authUserId) : undefined;
+      const staffRecord = staffByEmployee.get(employee.employee_id);
+      const authUser = staffRecord?.auth_user_id ? authById.get(staffRecord.auth_user_id) : undefined;
       let idDocumentUrl: string | null = null;
       if (employee.id_document_path) {
         const { data } = await admin.storage.from('employee-hr-documents').createSignedUrl(employee.id_document_path, 300);
         idDocumentUrl = data?.signedUrl || null;
       }
-      return { ...employee, id_document_url: idDocumentUrl, role: clean(authUser?.app_metadata?.role).toLowerCase() || 'staff' };
+      return {
+        ...employee,
+        id_document_url: idDocumentUrl,
+        role: clean(authUser?.app_metadata?.role).toLowerCase() || 'staff',
+        annual_leave_entitlement: Number(staffRecord?.annual_leave_entitlement ?? 20),
+      };
     }));
     const training = (trainingResult.data || []).map((item) => ({ ...item, ...(courses.get(item.course_id) || {}) }));
     const policies = (policyResult.data || []).filter((item) => item.acknowledged).map((item) => ({ employee_id: item.employee_id }));
