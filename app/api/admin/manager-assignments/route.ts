@@ -43,7 +43,8 @@ export async function GET() {
     if (employeesResult.error) throw employeesResult.error;
     if (usersResult.error) throw usersResult.error;
 
-    const authById = new Map((usersResult.data.users || []).map((authUser) => [authUser.id, authUser]));
+    const authUsers = usersResult.data.users || [];
+    const authById = new Map(authUsers.map((authUser) => [authUser.id, authUser]));
     const employees = (employeesResult.data || []).map((employee) => {
       const authUser = authById.get(employee.id);
       return {
@@ -51,7 +52,31 @@ export async function GET() {
         role: clean(authUser?.app_metadata?.role).toLowerCase() || 'staff',
       };
     });
-    const managers = employees.filter((employee) => MANAGER_ROLES.has(employee.role));
+
+    const employeeIds = new Set(employees.map((employee) => employee.id));
+    const configuredAdminEmails = new Set((process.env.ADMIN_EMAILS || '')
+      .split(',').map((email) => email.trim().toLowerCase()).filter(Boolean));
+
+    const authOnlyManagers = authUsers
+      .filter((authUser) => {
+        if (employeeIds.has(authUser.id)) return false;
+        const role = clean(authUser.app_metadata?.role).toLowerCase();
+        const isConfiguredAdmin = Boolean(authUser.email && configuredAdminEmails.has(authUser.email.toLowerCase()));
+        return MANAGER_ROLES.has(role) || isConfiguredAdmin;
+      })
+      .map((authUser) => ({
+        id: authUser.id,
+        email: authUser.email || null,
+        first_name: clean(authUser.user_metadata?.first_name) || clean(authUser.user_metadata?.firstName) || null,
+        last_name: clean(authUser.user_metadata?.last_name) || clean(authUser.user_metadata?.lastName) || null,
+        manager_id: null,
+        role: clean(authUser.app_metadata?.role).toLowerCase() || 'admin',
+      }));
+
+    const managers = [
+      ...employees.filter((employee) => MANAGER_ROLES.has(employee.role)),
+      ...authOnlyManagers,
+    ];
 
     return NextResponse.json({ employees, managers });
   } catch (error) {
@@ -76,7 +101,10 @@ export async function PATCH(request: Request) {
       const { data: managerUser, error: managerError } = await admin.auth.admin.getUserById(managerId);
       if (managerError) throw managerError;
       const managerRole = clean(managerUser.user?.app_metadata?.role).toLowerCase();
-      if (!MANAGER_ROLES.has(managerRole)) {
+      const configuredAdminEmails = (process.env.ADMIN_EMAILS || '')
+        .split(',').map((email) => email.trim().toLowerCase()).filter(Boolean);
+      const isConfiguredAdmin = Boolean(managerUser.user?.email && configuredAdminEmails.includes(managerUser.user.email.toLowerCase()));
+      if (!MANAGER_ROLES.has(managerRole) && !isConfiguredAdmin) {
         return NextResponse.json({ error: 'The selected person must have Manager, HR or Admin portal access.' }, { status: 400 });
       }
     }
