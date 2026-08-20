@@ -51,13 +51,11 @@ export async function PATCH(request: Request, context: { params: Promise<{ emplo
     if (!data) return NextResponse.json({ error: 'Employee onboarding record was not found.' }, { status: 404 });
 
     if (role) {
-      const { data: employeeLink, error: linkError } = await admin.from('employees').select('auth_user_id').eq('id', employeeId).maybeSingle();
-      if (linkError) throw linkError;
-      if (!employeeLink?.auth_user_id) return NextResponse.json({ error: 'This employee is not linked to a portal login.' }, { status: 400 });
-      const { data: authUser, error: authLookupError } = await admin.auth.admin.getUserById(employeeLink.auth_user_id);
+      const { data: authUser, error: authLookupError } = await admin.auth.admin.getUserById(employeeId);
       if (authLookupError) throw authLookupError;
-      const appMetadata = { ...(authUser.user?.app_metadata || {}), role };
-      const { error: roleError } = await admin.auth.admin.updateUserById(employeeLink.auth_user_id, { app_metadata: appMetadata });
+      if (!authUser.user) return NextResponse.json({ error: 'This employee is not linked to a portal login.' }, { status: 400 });
+      const appMetadata = { ...(authUser.user.app_metadata || {}), role };
+      const { error: roleError } = await admin.auth.admin.updateUserById(employeeId, { app_metadata: appMetadata });
       if (roleError) throw roleError;
     }
 
