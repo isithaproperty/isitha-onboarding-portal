@@ -1,8 +1,8 @@
 import './globals.css';
 
 export const metadata = {
-  title: 'Isitha Global Onboarding',
-  description: 'Staff onboarding and compliance portal',
+  title: 'Isitha Global Staff Portal',
+  description: 'Isitha Global staff onboarding, contracts, leave and compliance portal',
 };
 
 export default function RootLayout({

@@ -2,29 +2,20 @@ import Link from 'next/link';
 
 export function Header() {
   return (
-    <header
-      style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingBottom: '20px',
-        borderBottom: '1px solid #e5e7eb',
-      }}
-    >
-      <div>
-        <strong style={{ fontSize: '20px' }}>ISITHA GLOBAL</strong>
-        <div className="muted" style={{ fontSize: '13px' }}>
-          Staff Onboarding & Compliance
+    <header className="site-header">
+      <Link href="/" className="brand-lockup" aria-label="Isitha Global home">
+        <img
+          src="/isitha-global-logo.webp"
+          alt="Isitha Global"
+          className="brand-logo"
+        />
+        <div className="brand-copy">
+          <strong>Staff Portal</strong>
+          <span>Onboarding & Compliance</span>
         </div>
-      </div>
+      </Link>
 
-      <nav
-        style={{
-          display: 'flex',
-          gap: '18px',
-          alignItems: 'center',
-        }}
-      >
+      <nav className="site-nav" aria-label="Portal navigation">
         <Link href="/">My Portal</Link>
         <Link href="/admin">HR Admin</Link>
       </nav>
