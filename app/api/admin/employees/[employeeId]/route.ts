@@ -19,21 +19,19 @@ async function getAuthenticatedUser() {
   return error ? null : user;
 }
 
-async function isAuthorisedManager(admin: ReturnType<typeof createSupabaseAdminClient>, user: NonNullable<Awaited<ReturnType<typeof getAuthenticatedUser>>>) {
+async function isAuthorisedManager(user: NonNullable<Awaited<ReturnType<typeof getAuthenticatedUser>>>) {
   const configuredEmails = (process.env.ADMIN_EMAILS || '').split(',').map((email) => email.trim().toLowerCase()).filter(Boolean);
   if (user.email && configuredEmails.includes(user.email.toLowerCase())) return true;
-  if (ADMIN_ROLES.has(clean(user.app_metadata?.role).toLowerCase())) return true;
-  const { data: profile } = await admin.from('profiles').select('role').eq('id', user.id).maybeSingle();
-  return ADMIN_ROLES.has(clean(profile?.role).toLowerCase());
+  return ADMIN_ROLES.has(clean(user.app_metadata?.role).toLowerCase());
 }
 
 export async function PATCH(request: Request, context: { params: Promise<{ employeeId: string }> }) {
   try {
     const user = await getAuthenticatedUser();
     if (!user) return NextResponse.json({ error: 'Please sign in again.' }, { status: 401 });
-    const admin = createSupabaseAdminClient();
-    if (!(await isAuthorisedManager(admin, user))) return NextResponse.json({ error: 'Only an authorised manager can update employee records.' }, { status: 403 });
+    if (!(await isAuthorisedManager(user))) return NextResponse.json({ error: 'Only an authorised manager can update employee records.' }, { status: 403 });
 
+    const admin = createSupabaseAdminClient();
     const { employeeId } = await context.params;
     const body = await request.json();
     const status = clean(body.status).toLowerCase();
@@ -53,7 +51,13 @@ export async function PATCH(request: Request, context: { params: Promise<{ emplo
     if (!data) return NextResponse.json({ error: 'Employee onboarding record was not found.' }, { status: 404 });
 
     if (role) {
-      const { error: roleError } = await admin.from('profiles').upsert({ id: employeeId, role }, { onConflict: 'id' });
+      const { data: employeeLink, error: linkError } = await admin.from('employees').select('auth_user_id').eq('id', employeeId).maybeSingle();
+      if (linkError) throw linkError;
+      if (!employeeLink?.auth_user_id) return NextResponse.json({ error: 'This employee is not linked to a portal login.' }, { status: 400 });
+      const { data: authUser, error: authLookupError } = await admin.auth.admin.getUserById(employeeLink.auth_user_id);
+      if (authLookupError) throw authLookupError;
+      const appMetadata = { ...(authUser.user?.app_metadata || {}), role };
+      const { error: roleError } = await admin.auth.admin.updateUserById(employeeLink.auth_user_id, { app_metadata: appMetadata });
       if (roleError) throw roleError;
     }
 
