@@ -18,6 +18,7 @@ export function Header() {
       <nav className="site-nav" aria-label="Portal navigation">
         <Link href="/">My Portal</Link>
         <Link href="/admin">HR Admin</Link>
+        <Link href="/admin/managers">Manager Allocation</Link>
       </nav>
     </header>
   );
