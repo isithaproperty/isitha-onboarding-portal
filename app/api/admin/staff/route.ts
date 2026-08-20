@@ -4,11 +4,13 @@ import { cookies } from 'next/headers';
 import { createSupabaseAdminClient } from '@/lib/supabase-admin';
 
 const ADMIN_ROLES = new Set(['admin', 'manager', 'hr_admin', 'compliance_admin']);
+const ASSIGNABLE_ROLES = new Set(['staff', 'manager', 'hr_admin', 'admin']);
 
 type NewStaffRequest = {
   email?: string;
   firstName?: string;
   lastName?: string;
+  role?: string;
 };
 
 function clean(value: unknown) {
@@ -31,17 +33,14 @@ async function getAuthenticatedUser() {
 }
 
 async function isAuthorisedManager(
-  admin: ReturnType<typeof createSupabaseAdminClient>,
+  _admin: ReturnType<typeof createSupabaseAdminClient>,
   user: NonNullable<Awaited<ReturnType<typeof getAuthenticatedUser>>>
 ) {
   const configuredEmails = (process.env.ADMIN_EMAILS || '')
     .split(',').map((email) => email.trim().toLowerCase()).filter(Boolean);
 
   if (user.email && configuredEmails.includes(user.email.toLowerCase())) return true;
-  if (ADMIN_ROLES.has(clean(user.app_metadata?.role).toLowerCase())) return true;
-
-  const { data: profile } = await admin.from('profiles').select('role').eq('id', user.id).maybeSingle();
-  return ADMIN_ROLES.has(clean(profile?.role).toLowerCase());
+  return ADMIN_ROLES.has(clean(user.app_metadata?.role).toLowerCase());
 }
 
 export async function POST(request: Request) {
@@ -58,9 +57,13 @@ export async function POST(request: Request) {
     const email = clean(body.email).toLowerCase();
     const firstName = clean(body.firstName);
     const lastName = clean(body.lastName);
+    const role = clean(body.role || 'staff').toLowerCase();
 
     if (!email || !firstName || !lastName) {
       return NextResponse.json({ error: 'First name, last name and email address are required.' }, { status: 400 });
+    }
+    if (!ASSIGNABLE_ROLES.has(role)) {
+      return NextResponse.json({ error: 'Please select a valid portal role.' }, { status: 400 });
     }
 
     const redirectTo = process.env.NEXT_PUBLIC_SITE_URL
@@ -79,9 +82,14 @@ export async function POST(request: Request) {
       }, { status: duplicate ? 409 : 400 });
     }
 
-    // The existing employees table is the link between Supabase Auth and onboarding.
-    // Only auth_user_id is required by the current portal; personal/employment details
-    // are collected in employee_hr_onboarding when the employee completes onboarding.
+    const { error: roleError } = await admin.auth.admin.updateUserById(invited.user.id, {
+      app_metadata: { ...(invited.user.app_metadata || {}), role },
+    });
+    if (roleError) {
+      await admin.auth.admin.deleteUser(invited.user.id);
+      throw new Error(`Portal role could not be assigned: ${roleError.message}`);
+    }
+
     const { error: employeeError } = await admin.from('employees').insert({
       auth_user_id: invited.user.id,
     });
@@ -92,7 +100,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({
-      message: `${firstName} ${lastName} was added. An invitation email has been sent to ${email}.`
+      message: `${firstName} ${lastName} was added as ${role === 'hr_admin' ? 'HR' : role.charAt(0).toUpperCase() + role.slice(1)}. An invitation email has been sent to ${email}.`
     }, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to add staff.';
