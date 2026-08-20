@@ -36,9 +36,14 @@ export async function GET() {
     if (employeeResult.error) throw employeeResult.error;
     if (contractResult.error) throw contractResult.error;
 
+    const contracts = await Promise.all((contractResult.data || []).map(async contract => {
+      const { data } = await admin.storage.from('employee-contracts').createSignedUrl(contract.file_path, 300);
+      return { ...contract, signed_url: data?.signedUrl || null };
+    }));
+
     return NextResponse.json({
       employees: (employeeResult.data || []).map(e => ({ id: e.employee_id, first_name: e.legal_first_name, last_name: e.legal_last_name })),
-      contracts: contractResult.data || [],
+      contracts,
     });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to load contracts.' }, { status: 500 });
