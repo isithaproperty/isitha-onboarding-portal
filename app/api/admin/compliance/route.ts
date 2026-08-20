@@ -19,9 +19,7 @@ async function getAuthenticatedUser() {
 async function isAuthorisedManager(admin: ReturnType<typeof createSupabaseAdminClient>, user: NonNullable<Awaited<ReturnType<typeof getAuthenticatedUser>>>) {
   const configuredEmails = (process.env.ADMIN_EMAILS || '').split(',').map((email) => email.trim().toLowerCase()).filter(Boolean);
   if (user.email && configuredEmails.includes(user.email.toLowerCase())) return true;
-  if (ADMIN_ROLES.has(clean(user.app_metadata?.role).toLowerCase())) return true;
-  const { data: profile } = await admin.from('profiles').select('role').eq('id', user.id).maybeSingle();
-  return ADMIN_ROLES.has(clean(profile?.role).toLowerCase());
+  return ADMIN_ROLES.has(clean(user.app_metadata?.role).toLowerCase());
 }
 
 export async function GET() {
@@ -31,18 +29,27 @@ export async function GET() {
     const admin = createSupabaseAdminClient();
     if (!(await isAuthorisedManager(admin, user))) return NextResponse.json({ error: 'Only an authorised manager can view employee compliance records.' }, { status: 403 });
 
-    const [employeesResult, trainingResult, coursesResult, policyResult, profilesResult] = await Promise.all([
+    const [employeesResult, staffResult, trainingResult, coursesResult, policyResult, usersResult] = await Promise.all([
       admin.from('employee_hr_onboarding').select('id,employee_id,legal_first_name,legal_last_name,personal_email,mobile_number,declaration_accepted,status'),
+      admin.from('employees').select('id,auth_user_id'),
       admin.from('training_progress').select('employee_id,course_id,progress_percent,completed_at'),
       admin.from('training_courses').select('id,slug,title'),
       admin.from('employee_document_acknowledgements').select('employee_id,acknowledged'),
-      admin.from('profiles').select('id,role'),
+      admin.auth.admin.listUsers({ page: 1, perPage: 1000 }),
     ]);
-    const error = employeesResult.error || trainingResult.error || coursesResult.error || policyResult.error || profilesResult.error;
+
+    const error = employeesResult.error || staffResult.error || trainingResult.error || coursesResult.error || policyResult.error || usersResult.error;
     if (error) throw error;
+
+    const authById = new Map((usersResult.data.users || []).map((authUser) => [authUser.id, authUser]));
+    const authUserByEmployee = new Map((staffResult.data || []).map((employee) => [employee.id, employee.auth_user_id]));
     const courses = new Map((coursesResult.data || []).map((course) => [course.id, course]));
-    const roles = new Map((profilesResult.data || []).map((profile) => [profile.id, profile.role || 'staff']));
-    const employees = (employeesResult.data || []).map((employee) => ({ ...employee, role: roles.get(employee.employee_id) || 'staff' }));
+
+    const employees = (employeesResult.data || []).map((employee) => {
+      const authUserId = authUserByEmployee.get(employee.employee_id);
+      const authUser = authUserId ? authById.get(authUserId) : undefined;
+      return { ...employee, role: clean(authUser?.app_metadata?.role).toLowerCase() || 'staff' };
+    });
     const training = (trainingResult.data || []).map((item) => ({ ...item, ...(courses.get(item.course_id) || {}) }));
     const policies = (policyResult.data || []).filter((item) => item.acknowledged).map((item) => ({ employee_id: item.employee_id }));
     return NextResponse.json({ employees, training, policies });
