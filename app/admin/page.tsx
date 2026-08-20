@@ -14,6 +14,7 @@ type Employee = {
   declaration_accepted?: boolean;
   status?: string;
   role?: string;
+  annual_leave_entitlement?: number;
   id_passport_number?: string;
   tax_number?: string;
   date_of_birth?: string;
@@ -169,6 +170,7 @@ export default function AdminPage() {
           mobile: fd.get("mobile"),
           status: fd.get("status"),
           role: fd.get("role"),
+          annualLeaveEntitlement: fd.get("annualLeaveEntitlement"),
         }),
       });
       const result = await response.json();
@@ -334,6 +336,7 @@ export default function AdminPage() {
                                   <label>Mobile<input name="mobile" defaultValue={employee.mobile_number || ""} /></label>
                                   <label>Employment status<select name="status" defaultValue={(employee.status || "submitted").toLowerCase()}><option value="submitted">Submitted</option><option value="active">Active</option><option value="inactive">Inactive</option><option value="leaver">Leaver</option></select></label>
                                   <label>Portal role<select name="role" defaultValue={(employee.role || "staff").toLowerCase()}><option value="staff">Staff</option><option value="manager">Manager</option><option value="hr_admin">HR</option><option value="admin">Admin</option></select></label>
+                                  <label>Annual leave entitlement (days)<input name="annualLeaveEntitlement" type="number" min="0" max="365" step="0.5" defaultValue={employee.annual_leave_entitlement ?? 20} required /></label>
                                   <div className="admin-form-actions"><button className="button" disabled={savingEmployee}>{savingEmployee ? "Saving..." : "Save employee"}</button></div>
                                 </form>
                               </td>
@@ -350,6 +353,7 @@ export default function AdminPage() {
                                     <div><h4>Emergency Contact</h4><p><strong>Name:</strong> {value(employee.emergency_contact_name)}</p><p><strong>Relationship:</strong> {value(employee.emergency_contact_relationship)}</p><p><strong>Number:</strong> {value(employee.emergency_contact_number)}</p></div>
                                     <div><h4>Banking</h4><p><strong>Bank:</strong> {value(employee.bank_name)}</p><p><strong>Account holder:</strong> {value(employee.account_holder)}</p><p><strong>Account number:</strong> {value(employee.account_number)}</p><p><strong>Branch code:</strong> {value(employee.bank_branch_code)}</p><p><strong>Account type:</strong> {value(employee.account_type)}</p></div>
                                   </div>
+                                  <p><strong>Annual leave entitlement:</strong> {employee.annual_leave_entitlement ?? 20} days</p>
                                   <p><strong>Submitted:</strong> {employee.submitted_at ? new Date(employee.submitted_at).toLocaleString() : "Not recorded"}</p>
                                   <p><strong>Declaration:</strong> {employee.declaration_accepted ? "Accepted" : "Outstanding"}</p>
                                   {employee.id_document_url && <p><a className="button secondary" href={employee.id_document_url} target="_blank" rel="noreferrer">Open ID / Passport</a></p>}
