@@ -100,6 +100,9 @@ export async function POST(request: Request) {
 
     const { error: employeeError } = await admin.from('employees').insert({
       auth_user_id: invited.user.id,
+      legal_first_name: firstName,
+      legal_last_name: lastName,
+      personal_email: email,
     });
 
     if (employeeError) {
