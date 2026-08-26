@@ -1,33 +1,16 @@
-import { createServerClient } from '@supabase/ssr';
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { createSupabaseAdminClient } from '@/lib/supabase-admin';
-
-const ADMIN_ROLES = new Set(['admin', 'manager', 'hr_admin', 'compliance_admin']);
+import { assignableRoles, canViewHr } from '@/lib/authz';
+import { getAuthenticatedUser, roleForUser, safeApiError } from '@/lib/server-auth';
 function clean(value: unknown) { return typeof value === 'string' ? value.trim() : ''; }
-
-async function getAuthenticatedUser() {
-  const cookieStore = await cookies();
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !publishableKey) throw new Error('Supabase public credentials are not configured.');
-  const client = createServerClient(url, publishableKey, { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } });
-  const { data: { user }, error } = await client.auth.getUser();
-  return error ? null : user;
-}
-
-async function isAuthorisedManager(user: NonNullable<Awaited<ReturnType<typeof getAuthenticatedUser>>>) {
-  const configuredEmails = (process.env.ADMIN_EMAILS || '').split(',').map((email) => email.trim().toLowerCase()).filter(Boolean);
-  if (user.email && configuredEmails.includes(user.email.toLowerCase())) return true;
-  return ADMIN_ROLES.has(clean(user.app_metadata?.role).toLowerCase());
-}
 
 export async function GET() {
   try {
     const user = await getAuthenticatedUser();
     if (!user) return NextResponse.json({ error: 'Please sign in again.' }, { status: 401 });
+    const role = roleForUser(user);
+    if (!canViewHr(role)) return NextResponse.json({ error: 'Only HR, Compliance or Admin can view employee compliance records.' }, { status: 403 });
     const admin = createSupabaseAdminClient();
-    if (!(await isAuthorisedManager(user))) return NextResponse.json({ error: 'Only an authorised manager can view employee compliance records.' }, { status: 403 });
 
     const [employeesResult, staffResult, trainingResult, coursesResult, policyResult, usersResult] = await Promise.all([
       admin.from('employee_hr_onboarding').select('*'),
@@ -62,8 +45,8 @@ export async function GET() {
     }));
     const training = (trainingResult.data || []).map((item) => ({ ...item, ...(courses.get(item.course_id) || {}) }));
     const policies = (policyResult.data || []).filter((item) => item.acknowledged).map((item) => ({ employee_id: item.employee_id }));
-    return NextResponse.json({ employees, training, policies });
+    return NextResponse.json({ employees, training, policies, assignableRoles: assignableRoles(role) });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to load compliance records.' }, { status: 500 });
+    return NextResponse.json({ error: safeApiError(error, 'Unable to load compliance records.') }, { status: 500 });
   }
 }

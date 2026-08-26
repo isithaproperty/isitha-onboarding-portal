@@ -23,7 +23,7 @@ button, input, select, textarea { font: inherit; }
 .brand-copy { display:grid; gap:3px; padding-left:16px; border-left:1px solid var(--isitha-border); color:var(--isitha-navy); }
 .brand-copy strong { font-size:14px; letter-spacing:.04em; text-transform:uppercase; }
 .brand-copy span { color:var(--isitha-muted); font-size:12px; }
-.site-nav { display:flex; gap:8px; align-items:center; }
+.site-nav { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
 .site-nav a { padding:9px 13px; border-radius:9px; color:var(--isitha-navy); font-size:14px; font-weight:700; transition:background 160ms ease,color 160ms ease; }
 .site-nav a:hover { background:var(--isitha-gold-soft); color:var(--isitha-navy-deep); }
 
@@ -81,6 +81,11 @@ progress { accent-color:var(--isitha-gold); }
 /* Keep native controls visually consistent across leave, contracts, onboarding and admin pages. */
 .card input,.card select,.card textarea { border-color:#cbd5df; border-radius:9px; }
 .card input:focus,.card select:focus,.card textarea:focus { outline:none; border-color:var(--isitha-gold); box-shadow:0 0 0 3px rgba(200,154,75,.14); }
+.modal-backdrop { position:fixed; inset:0; z-index:50; display:grid; place-items:center; padding:20px; background:rgba(6,23,37,.7); }
+.modal-card { width:min(100%,560px); max-height:90vh; overflow:auto; background:#fff; border-radius:16px; padding:24px; box-shadow:0 24px 70px rgba(0,0,0,.3); }
+.modal-card form { display:grid; gap:12px; }
+.modal-card label { color:var(--isitha-navy); font-weight:700; }
+.modal-card textarea { width:100%; padding:12px; border:1px solid #cbd5df; border-radius:9px; }
 
 @media (max-width:720px) {
   .shell { padding-top:16px; }
@@ -88,8 +93,8 @@ progress { accent-color:var(--isitha-gold); }
   .brand-lockup { width:100%; }
   .brand-logo { width:170px; max-width:56vw; }
   .brand-copy { margin-left:auto; }
-  .site-nav { width:100%; }
-  .site-nav a { flex:1; text-align:center; background:#fff; border:1px solid var(--isitha-border); }
+  .site-nav { width:100%; overflow-x:auto; flex-wrap:nowrap; padding-bottom:4px; }
+  .site-nav a { flex:0 0 auto; text-align:center; white-space:nowrap; background:#fff; border:1px solid var(--isitha-border); }
   .hero { padding-top:26px; }
   .task { flex-direction:column; }
 }

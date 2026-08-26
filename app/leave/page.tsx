@@ -47,20 +47,20 @@ export default function LeavePage() {
 
   async function loadBalance(id:string){
     const {data,error}=await supabase.from('employee_leave_balances').select('annual_leave_entitlement,approved_days,pending_days,remaining_days').eq('employee_id',id).maybeSingle();
-    if(error){setErrorMessage(`Your annual leave balance could not be loaded: ${error.message}`);return;}
+    if(error){setErrorMessage('Your annual leave balance could not be loaded. Please try again.');return;}
     if(data) setBalance(data as LeaveBalance);
   }
 
   async function loadSickBalance(id:string){
     const {data,error}=await supabase.from('employee_sick_leave_balances').select('sick_leave_entitlement,sick_days_taken,sick_days_remaining').eq('employee_id',id).maybeSingle();
-    if(error){setErrorMessage(`Your sick leave balance could not be loaded: ${error.message}`);return;}
+    if(error){setErrorMessage('Your sick leave balance could not be loaded. Please try again.');return;}
     if(data) setSickBalance(data as SickLeaveBalance);
   }
 
   async function loadRequests(id:string){
     setLoadingRequests(true);
     const {data,error}=await supabase.from('leave_requests').select('id,leave_type,start_date,end_date,reason,status,manager_comment,medical_certificate_path,created_at').eq('employee_id',id).order('created_at',{ascending:false});
-    if(error){setErrorMessage(`Your leave requests could not be loaded: ${error.message}`);setLoadingRequests(false);return;}
+    if(error){setErrorMessage('Your leave requests could not be loaded. Please try again.');setLoadingRequests(false);return;}
     setRequests(data||[]);setLoadingRequests(false);
   }
 
@@ -95,7 +95,7 @@ export default function LeavePage() {
     }
     const payload={employee_id:employeeId,leave_type:selectedLeaveType,start_date:startDate,end_date:endDate,reason,status:'pending',medical_certificate_path:medicalCertificatePath};
     const {error}=await supabase.from('leave_requests').insert(payload);
-    if(error){if(medicalCertificatePath) await supabase.storage.from('medical-certificates').remove([medicalCertificatePath]);setErrorMessage(`Leave request could not be submitted: ${error.message}`);setSubmitting(false);return;}
+    if(error){if(medicalCertificatePath) await supabase.storage.from('medical-certificates').remove([medicalCertificatePath]);setErrorMessage('Your leave request could not be submitted. Please try again.');setSubmitting(false);return;}
     form.reset();setLeaveType('annual');setMessage('✓ Leave request submitted successfully and is awaiting manager approval.');setSubmitting(false);
     await Promise.all([loadRequests(employeeId),loadBalance(employeeId),loadSickBalance(employeeId)]);
   }

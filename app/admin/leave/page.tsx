@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Header } from '@/components/Header';
 import { supabase } from '@/lib/supabase';
+import { canViewHr, normaliseRole } from '@/lib/authz';
 
 type Balance = {
   employee_id: string;
@@ -34,8 +35,8 @@ export default function StaffLeaveOverview() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { router.push('/login'); return; }
 
-    const role = String(user.app_metadata?.role || 'staff').toLowerCase();
-    if (!['hr', 'hr_admin', 'admin', 'administrator'].includes(role)) {
+    const role = normaliseRole(user.app_metadata?.role);
+    if (!canViewHr(role)) {
       setLoading(false);
       return;
     }

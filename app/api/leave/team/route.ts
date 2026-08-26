@@ -1,36 +1,23 @@
-import { createServerClient } from '@supabase/ssr';
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { createSupabaseAdminClient } from '@/lib/supabase-admin';
-
-const clean = (value: unknown) => typeof value === 'string' ? value.trim() : '';
-
-async function getUser() {
-  const cookieStore = await cookies();
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !key) throw new Error('Supabase public credentials are not configured.');
-  const client = createServerClient(url, key, { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } });
-  const { data: { user }, error } = await client.auth.getUser();
-  return error ? null : user;
-}
+import { canReviewLeave } from '@/lib/authz';
+import { resolveEmployeeForUser } from '@/lib/employee-link';
+import { getAuthenticatedUser, roleForUser, safeApiError } from '@/lib/server-auth';
 
 export async function GET() {
   try {
-    const user = await getUser();
+    const user = await getAuthenticatedUser();
     if (!user) return NextResponse.json({ error: 'Please sign in again.' }, { status: 401 });
 
-    const role = clean(user.app_metadata?.role).toLowerCase();
-    const configuredAdmins = (process.env.ADMIN_EMAILS || '').split(',').map(v => v.trim().toLowerCase()).filter(Boolean);
-    const isConfiguredAdmin = Boolean(user.email && configuredAdmins.includes(user.email.toLowerCase()));
-    const isAdmin = isConfiguredAdmin || ['admin', 'administrator', 'hr', 'hr_admin'].includes(role);
-    const isManager = role === 'manager';
-    if (!isAdmin && !isManager) return NextResponse.json({ error: 'This page is only available to Managers, HR and Admin.' }, { status: 403 });
+    const role = roleForUser(user);
+    if (!canReviewLeave(role)) return NextResponse.json({ error: 'This page is only available to Managers, HR and Admin.' }, { status: 403 });
 
     const admin = createSupabaseAdminClient();
     let employeeIds: string[] | null = null;
-    if (isManager && !isAdmin) {
-      const { data: assigned, error } = await admin.from('employees').select('id').eq('manager_id', user.id);
+    if (role === 'manager') {
+      const manager = await resolveEmployeeForUser(user);
+      if (!manager) return NextResponse.json({ error: 'Your manager profile is not linked. Please contact HR.' }, { status: 409 });
+      const { data: assigned, error } = await admin.from('employees').select('id').eq('manager_id', manager.id);
       if (error) throw error;
       employeeIds = (assigned || []).map(row => row.id);
       if (employeeIds.length === 0) return NextResponse.json({ requests: [] });
@@ -56,6 +43,6 @@ export async function GET() {
       requests: (requests || []).map(row => ({ ...row, employees: names.get(row.employee_id) || null })),
     });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to load team leave requests.' }, { status: 500 });
+    return NextResponse.json({ error: safeApiError(error, 'Unable to load team leave requests.') }, { status: 500 });
   }
 }

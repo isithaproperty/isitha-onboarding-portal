@@ -13,8 +13,10 @@ Starter Next.js portal for live employee onboarding, training, acknowledgements,
 
 ## Run locally
 1. `npm install`
-2. Copy `.env.example` to `.env.local`
-3. `npm run dev`
+2. Copy `.env.example` to `.env.local` and fill in every value
+3. Apply the committed files in `supabase/migrations` to the matching Supabase project
+4. Run `npm run check`
+5. Run `npm run dev`
 
 ## Supabase
 The portal uses Supabase Auth, the existing `employees` table and the onboarding/training tables.
@@ -25,4 +27,8 @@ To enable **Admin → Add New Staff**, configure these server-side Vercel variab
 - `ADMIN_EMAILS` (comma-separated manager email addresses)
 - `NEXT_PUBLIC_SITE_URL` (the deployed portal URL used by the invitation email)
 
-Managers may alternatively be authorised with an `admin`, `manager`, `hr_admin` or `compliance_admin` role in Supabase Auth app metadata or the existing `profiles.role` field. New employees receive a Supabase invitation email and are linked to `employees.auth_user_id` automatically.
+Portal authorisation uses one canonical role held in Supabase Auth app metadata: `staff`, `manager`, `hr_admin`, `compliance_admin` or `admin`. `ADMIN_EMAILS` is the emergency owner allow-list. Managers may create staff accounts only; only an administrator can grant administrator or compliance access. New employees receive a Supabase invitation email and are linked to `employees.auth_user_id` automatically.
+
+## Audit remediation
+
+The 22 August 2026 audit repairs are versioned in `supabase/migrations/202608260001_audit_remediation.sql`. The migration backfills missing login links, replaces overlapping leave policies, prevents self-approval, locks assessment writes to trusted server code, enables authorised medical-certificate access and adds privacy-request records. Apply it before deploying the matching application release.
