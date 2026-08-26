@@ -4,7 +4,6 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Header } from '@/components/Header';
 import { quiz } from '@/lib/training';
-import { supabase } from '@/lib/supabase';
 
 export default function QuizPage() {
   const [answers, setAnswers] = useState<number[]>(
@@ -12,20 +11,21 @@ export default function QuizPage() {
   );
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
-const [saveMessage, setSaveMessage] = useState('');
+  const [saveMessage, setSaveMessage] = useState('');
+  const [result, setResult] = useState<{percentage:number;passed:boolean}|null>(null);
 
   const score = answers.reduce((total, answer, index) => {
     return answer === quiz[index].answer ? total + 1 : total;
   }, 0);
 
   const percentage = Math.round((score / quiz.length) * 100);
-  const passed = percentage >= 80;
 
   function selectAnswer(questionIndex: number, optionIndex: number) {
     const updated = [...answers];
     updated[questionIndex] = optionIndex;
     setAnswers(updated);
     setSubmitted(false);
+    setResult(null);
   }
 async function submitAssessment() {
   if (saving) return;
@@ -34,86 +34,23 @@ async function submitAssessment() {
   setSaveMessage('');
 
   try {
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-      setSaveMessage('Please sign in before submitting the assessment.');
+    const response = await fetch('/api/training/ohsa-assessment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ answers }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      setSaveMessage(data.error || 'The assessment could not be recorded.');
       return;
     }
-
-    const { data: employee, error: employeeError } = await supabase
-      .from('employees')
-      .select('id')
-      .eq('auth_user_id', user.id)
-      .single();
-
-    if (employeeError || !employee) {
-      setSaveMessage('Your employee profile could not be found.');
-      return;
-    }
-
-    const { data: course, error: courseError } = await supabase
-      .from('training_courses')
-      .select('id')
-      .eq('slug', 'ohsa-awareness')
-      .single();
-
-    if (courseError || !course) {
-      setSaveMessage('OHSA training course could not be found.');
-      return;
-    }
-
-    const { error: attemptError } = await supabase
-      .from('quiz_attempts')
-      .insert({
-        employee_id: employee.id,
-        course_id: course.id,
-        score: percentage,
-        pass_mark: 80,
-        passed: passed,
-      });
-
-    if (attemptError) {
-      setSaveMessage(`Unable to save assessment: ${attemptError.message}`);
-      return;
-    }
-
-    if (passed) {
-      const { error: progressError } = await supabase
-        .from('training_progress')
-        .upsert(
-          {
-            employee_id: employee.id,
-            course_id: course.id,
-            status: 'completed',
-            progress_percent: 100,
-            completed_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          },
-          {
-            onConflict: 'employee_id,course_id',
-          }
-        );
-
-      if (progressError) {
-        setSaveMessage(
-          'Assessment passed, but training progress could not be updated.'
-        );
-        setSubmitted(true);
-        return;
-      }
-    }
-
+    setResult({ percentage: data.percentage, passed: data.passed });
     setSubmitted(true);
-
-    setSaveMessage(
-      passed
-        ? '✓ Assessment result saved. OHSA training completed.'
-        : 'Assessment result saved. You must achieve 80% to pass.'
-    );
+    setSaveMessage(data.passed
+      ? '✓ Assessment result verified and saved. OHSA training completed.'
+      : 'Assessment result saved. You must achieve 80% to pass.');
+  } catch {
+    setSaveMessage('The assessment could not be recorded. Please try again.');
   } finally {
     setSaving(false);
   }
@@ -194,10 +131,10 @@ onClick={submitAssessment}
           {submitted && (
             <div style={{ marginTop: 24 }}>
               <h2>
-                Score: {percentage}%
+                Score: {result?.percentage ?? percentage}%
               </h2>
 
-              {passed ? (
+              {result?.passed ? (
                 <>
                   <p className="ok">
                     ✓ Assessment passed

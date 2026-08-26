@@ -1,32 +1,14 @@
-import { createServerClient } from '@supabase/ssr';
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { createSupabaseAdminClient } from '@/lib/supabase-admin';
-
-const ADMIN_ROLES = new Set(['admin', 'manager', 'hr_admin', 'compliance_admin']);
+import { canManageContracts } from '@/lib/authz';
+import { getAuthenticatedUser, roleForUser, safeApiError } from '@/lib/server-auth';
 const clean = (value: unknown) => typeof value === 'string' ? value.trim() : '';
-
-async function getAuthenticatedUser() {
-  const cookieStore = await cookies();
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !key) throw new Error('Supabase public credentials are not configured.');
-  const client = createServerClient(url, key, { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } });
-  const { data: { user }, error } = await client.auth.getUser();
-  return error ? null : user;
-}
-
-function isAuthorised(user: NonNullable<Awaited<ReturnType<typeof getAuthenticatedUser>>>) {
-  const configuredEmails = (process.env.ADMIN_EMAILS || '').split(',').map(v => v.trim().toLowerCase()).filter(Boolean);
-  if (user.email && configuredEmails.includes(user.email.toLowerCase())) return true;
-  return ADMIN_ROLES.has(clean(user.app_metadata?.role).toLowerCase());
-}
 
 export async function GET() {
   try {
     const user = await getAuthenticatedUser();
     if (!user) return NextResponse.json({ error: 'Please sign in again.' }, { status: 401 });
-    if (!isAuthorised(user)) return NextResponse.json({ error: 'This area is for Manager, HR and Admin only.' }, { status: 403 });
+    if (!canManageContracts(roleForUser(user))) return NextResponse.json({ error: 'This area is for Manager, HR and Admin only.' }, { status: 403 });
 
     const admin = createSupabaseAdminClient();
     const [employeeResult, contractResult] = await Promise.all([
@@ -46,7 +28,7 @@ export async function GET() {
       contracts,
     });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to load contracts.' }, { status: 500 });
+    return NextResponse.json({ error: safeApiError(error, 'Unable to load contracts.') }, { status: 500 });
   }
 }
 
@@ -54,7 +36,7 @@ export async function POST(request: Request) {
   try {
     const user = await getAuthenticatedUser();
     if (!user) return NextResponse.json({ error: 'Please sign in again.' }, { status: 401 });
-    if (!isAuthorised(user)) return NextResponse.json({ error: 'This area is for Manager, HR and Admin only.' }, { status: 403 });
+    if (!canManageContracts(roleForUser(user))) return NextResponse.json({ error: 'This area is for Manager, HR and Admin only.' }, { status: 403 });
 
     const form = await request.formData();
     const employeeId = clean(form.get('employee_id'));
@@ -88,6 +70,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ message: 'Contract uploaded. It is now waiting for the employee to sign.' }, { status: 201 });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to upload contract.' }, { status: 500 });
+    return NextResponse.json({ error: safeApiError(error, 'Unable to upload contract.') }, { status: 500 });
   }
 }

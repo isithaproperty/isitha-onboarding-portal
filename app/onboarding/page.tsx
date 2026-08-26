@@ -1,89 +1,44 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
-const inputStyle = { width: "100%", padding: "12px 14px", border: "1px solid #d1d5db", borderRadius: 8, fontSize: 16, boxSizing: "border-box" as const };
-const labelStyle = { display: "block", fontWeight: 600, marginBottom: 6 };
-const fieldStyle = { display: "flex", flexDirection: "column" as const };
-const sectionStyle = { background: "#ffffff", border: "1px solid #e5e7eb", borderRadius: 14, padding: 24, marginTop: 24 };
+type Existing=Record<string,string|boolean|null>;
+const inputStyle={width:"100%",padding:"12px 14px",border:"1px solid #d1d5db",borderRadius:8,fontSize:16,boxSizing:"border-box" as const};
+const labelStyle={display:"block",fontWeight:600,marginBottom:6};
+const fieldStyle={display:"flex",flexDirection:"column" as const};
+const sectionStyle={background:"#ffffff",border:"1px solid #e5e7eb",borderRadius:14,padding:24,marginTop:24};
 
-export default function OnboardingPage() {
-  const [submitted, setSubmitted] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState("");
-
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setSaving(true);
-    setMessage("");
-
-    try {
-      const formData = new FormData(e.currentTarget);
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) throw new Error("You must be signed in to submit onboarding.");
-
-      let { data: employee } = await supabase.from("employees").select("id").eq("id", user.id).maybeSingle();
-      if (!employee && user.email) {
-        const byEmail = await supabase.from("employees").select("id").eq("email", user.email.toLowerCase()).maybeSingle();
-        employee = byEmail.data;
-      }
-      if (!employee) throw new Error("Employee record could not be found.");
-
-      const idFile = formData.get("id_document") as File;
-      if (!idFile || idFile.size === 0) throw new Error("Please upload your ID or passport document.");
-
-      const safeFileName = idFile.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-      const filePath = `${user.id}/${Date.now()}-${safeFileName}`;
-      const { error: uploadError } = await supabase.storage.from("employee-hr-documents").upload(filePath, idFile);
-      if (uploadError) throw uploadError;
-
-      const now = new Date().toISOString();
-      const { error: saveError } = await supabase.from("employee_hr_onboarding").upsert({
-        employee_id: employee.id,
-        legal_first_name: formData.get("first_name"), legal_last_name: formData.get("last_name"),
-        id_passport_number: formData.get("id_number"), tax_number: formData.get("tax_number"), date_of_birth: formData.get("date_of_birth"),
-        mobile_number: formData.get("mobile_number"), personal_email: formData.get("personal_email"), residential_address: formData.get("residential_address"),
-        emergency_contact_name: formData.get("emergency_contact_name"), emergency_contact_relationship: formData.get("emergency_contact_relationship"), emergency_contact_number: formData.get("emergency_contact_number"),
-        bank_name: formData.get("bank_name"), account_holder: formData.get("bank_account_holder"), account_number: formData.get("bank_account_number"),
-        bank_branch_code: formData.get("bank_branch_code"), account_type: formData.get("bank_account_type"), id_document_path: filePath,
-        declaration_accepted: true, declaration_accepted_at: now, status: "submitted", submitted_at: now, updated_at: now,
-      }, { onConflict: "employee_id" });
-      if (saveError) throw saveError;
-
-      const acknowledgement = {
-        employee_id: employee.id, document_key: "hr_onboarding_policy", document_title: "HR Onboarding Policy",
-        document_version: "1.0", acknowledged: true, acknowledged_at: now,
-      };
-      const { data: existingAck, error: ackLookupError } = await supabase.from("employee_document_acknowledgements").select("id").eq("employee_id", employee.id).eq("document_key", "hr_onboarding_policy").maybeSingle();
-      if (ackLookupError) throw ackLookupError;
-      const ackQuery = existingAck
-        ? supabase.from("employee_document_acknowledgements").update(acknowledgement).eq("id", existingAck.id)
-        : supabase.from("employee_document_acknowledgements").insert(acknowledgement);
-      const { error: policyError } = await ackQuery;
-      if (policyError) throw policyError;
-
-      setSubmitted(true);
-      setMessage("Your HR onboarding has been submitted successfully.");
-    } catch (error) {
-      console.error("HR onboarding submission failed:", error);
-      const detail = error && typeof error === "object" && "message" in error ? String((error as { message?: unknown }).message || "") : "";
-      setMessage(detail || "Unable to submit onboarding. Please contact HR if the problem continues.");
-    } finally { setSaving(false); }
+export default function OnboardingPage(){
+  const[existing,setExisting]=useState<Existing|null>(null);const[employeeId,setEmployeeId]=useState('');const[loading,setLoading]=useState(true);const[saving,setSaving]=useState(false);const[message,setMessage]=useState('');
+  useEffect(()=>{void load()},[]);
+  async function load(){const{data:{user}}=await supabase.auth.getUser();if(!user){window.location.href='/login';return}let{data:employee}=await supabase.from('employees').select('id').eq('auth_user_id',user.id).maybeSingle();if(!employee&&user.email){const byEmail=await supabase.from('employees').select('id').ilike('email',user.email).maybeSingle();employee=byEmail.data}if(!employee){setMessage('Your employee record could not be found. Please contact HR.');setLoading(false);return}setEmployeeId(employee.id);const{data,error}=await supabase.from('employee_hr_onboarding').select('*').eq('employee_id',employee.id).maybeSingle();if(error)setMessage('Your onboarding record could not be loaded. Please try again.');else setExisting(data as Existing|null);setLoading(false)}
+  async function handleSubmit(e:React.FormEvent<HTMLFormElement>){
+    e.preventDefault();if(!employeeId||saving)return;setSaving(true);setMessage('');let newPath:string|null=null;
+    try{
+      const formData=new FormData(e.currentTarget);const{data:{user},error:userError}=await supabase.auth.getUser();
+      if(userError||!user)throw new Error('You must be signed in to save onboarding.');
+      const idFile=formData.get('id_document');const oldPath=typeof existing?.id_document_path==='string'?existing.id_document_path:null;
+      if(idFile instanceof File&&idFile.size>0){
+        const allowed=['application/pdf','image/jpeg','image/png'];if(!allowed.includes(idFile.type))throw new Error('ID document must be a PDF, JPG or PNG file.');if(idFile.size>10*1024*1024)throw new Error('ID document must be 10 MB or smaller.');
+        const safe=idFile.name.replace(/[^a-zA-Z0-9._-]/g,'_');newPath=`${user.id}/${Date.now()}-${safe}`;
+        const{error}=await supabase.storage.from('employee-hr-documents').upload(newPath,idFile,{upsert:false});if(error)throw error;
+      }else if(!oldPath)throw new Error('Please upload your ID or passport document.');
+      const now=new Date().toISOString();
+      const{error:saveError}=await supabase.from('employee_hr_onboarding').upsert({
+        employee_id:employeeId,legal_first_name:formData.get('legal_first_name'),legal_last_name:formData.get('legal_last_name'),id_passport_number:formData.get('id_passport_number'),tax_number:formData.get('tax_number'),date_of_birth:formData.get('date_of_birth'),mobile_number:formData.get('mobile_number'),personal_email:formData.get('personal_email'),residential_address:formData.get('residential_address'),emergency_contact_name:formData.get('emergency_contact_name'),emergency_contact_relationship:formData.get('emergency_contact_relationship'),emergency_contact_number:formData.get('emergency_contact_number'),bank_name:formData.get('bank_name'),account_holder:formData.get('account_holder'),account_number:formData.get('account_number'),bank_branch_code:formData.get('bank_branch_code'),account_type:formData.get('account_type'),id_document_path:newPath||oldPath,declaration_accepted:true,declaration_accepted_at:now,status:'submitted',submitted_at:existing?.submitted_at||now,updated_at:now,
+      },{onConflict:'employee_id'});
+      if(saveError){if(newPath)await supabase.storage.from('employee-hr-documents').remove([newPath]);throw saveError}
+      if(newPath&&oldPath&&newPath!==oldPath)await supabase.storage.from('employee-hr-documents').remove([oldPath]);
+      const acknowledgement={employee_id:employeeId,document_key:'hr_onboarding_policy',document_title:'HR Onboarding Policy',document_version:'1.1',acknowledged:true,acknowledged_at:now};
+      const{data:ack}=await supabase.from('employee_document_acknowledgements').select('id').eq('employee_id',employeeId).eq('document_key','hr_onboarding_policy').maybeSingle();
+      const{error:ackError}=ack?await supabase.from('employee_document_acknowledgements').update(acknowledgement).eq('id',ack.id):await supabase.from('employee_document_acknowledgements').insert(acknowledgement);if(ackError)throw ackError;
+      setMessage('✓ Your HR onboarding details were saved successfully.');await load();
+    }catch(error){if(process.env.NODE_ENV!=="production")console.error(error);if(newPath)await supabase.storage.from('employee-hr-documents').remove([newPath]);setMessage('Unable to save onboarding. Please try again or contact HR.')}finally{setSaving(false)}
   }
-
-  if (submitted) return <main style={{ maxWidth: 950, margin: "40px auto", padding: "0 20px 50px" }}><section style={sectionStyle}><h1>HR Onboarding Complete</h1><p>{message}</p><p>You can return to your staff portal. The onboarding action will no longer be required.</p></section></main>;
-
-  const field = (label: string, name: string, type = "text") => <div style={fieldStyle}><label style={labelStyle}>{label}</label><input name={name} type={type} required style={inputStyle} /></div>;
-  return <main style={{ maxWidth: 950, margin: "40px auto", padding: "0 20px 50px" }}>
-    <div style={{ marginBottom: 30 }}><div style={{ fontSize: 14, fontWeight: 700, letterSpacing: 1, marginBottom: 6 }}>ISITHA GLOBAL</div><h1 style={{ fontSize: 42, margin: "0 0 12px" }}>Employee HR Onboarding</h1><p style={{ fontSize: 18, lineHeight: 1.5, color: "#4b5563" }}>Please complete your personal and employment information below. Your information will be securely submitted to Isitha Global HR.</p></div>
-    <form onSubmit={handleSubmit}>
-      <section style={sectionStyle}><h2>Personal Details</h2><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 20 }}>{field("First Name","first_name")}{field("Last Name","last_name")}{field("South African ID / Passport Number","id_number")}{field("SARS Income Tax Number","tax_number")}{field("Date of Birth","date_of_birth","date")}{field("Mobile Number","mobile_number")}{field("Personal Email Address","personal_email","email")}</div></section>
-      <section style={sectionStyle}><h2>Residential Address</h2><div style={fieldStyle}><label style={labelStyle}>Address</label><textarea name="residential_address" required rows={4} style={{ ...inputStyle, resize: "vertical" }} /></div></section>
-      <section style={sectionStyle}><h2>Emergency Contact</h2><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 20 }}>{field("Emergency Contact Name","emergency_contact_name")}{field("Relationship","emergency_contact_relationship")}{field("Emergency Contact Number","emergency_contact_number")}</div></section>
-      <section style={sectionStyle}><h2>Banking Details</h2><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 20 }}>{field("Bank","bank_name")}{field("Account Holder","bank_account_holder")}{field("Account Number","bank_account_number")}{field("Branch Code","bank_branch_code")}<div style={fieldStyle}><label style={labelStyle}>Account Type</label><select name="bank_account_type" required style={inputStyle}><option value="">Select</option><option value="current">Current / Cheque</option><option value="savings">Savings</option></select></div></div></section>
-      <section style={sectionStyle}><h2>Identification Document</h2><p style={{ color: "#4b5563" }}>Upload a clear copy of your South African ID document or passport.</p><input name="id_document" type="file" accept=".pdf,.jpg,.jpeg,.png" required style={{ ...inputStyle, padding: 18, background: "#f9fafb" }} /></section>
-      <section style={sectionStyle}><h2>Employee Declaration</h2><label style={{ display: "flex", gap: 12, alignItems: "flex-start", lineHeight: 1.5 }}><input type="checkbox" required style={{ marginTop: 5 }} /><span>I confirm that the information provided is true and correct and consent to Isitha Global processing this information for employment, payroll and HR administration purposes.</span></label><button disabled={saving} type="submit" style={{ marginTop: 28, width: "100%", padding: "15px 20px", border: 0, borderRadius: 8, background: "#111827", color: "white", fontSize: 17, fontWeight: 700, cursor: "pointer" }}>{saving ? "Submitting..." : "Submit to HR"}</button>{message && <p style={{ marginTop: 20, padding: 14, borderRadius: 8, background: "#f3f4f6", fontWeight: 600 }}>{message}</p>}</section>
-    </form>
-  </main>;
+  if(loading)return <main className="shell"><section style={sectionStyle}><h1>Loading your onboarding record...</h1></section></main>;
+  const value=(name:string)=>typeof existing?.[name]==='string'?String(existing[name]):'';
+  const field=(label:string,name:string,type='text')=><div style={fieldStyle}><label htmlFor={name} style={labelStyle}>{label}</label><input id={name} name={name} type={type} required defaultValue={value(name)} style={inputStyle}/></div>;
+  return <main style={{maxWidth:950,margin:'40px auto',padding:'0 20px 50px'}}><div style={{marginBottom:30}}><div style={{fontSize:14,fontWeight:700,letterSpacing:1,marginBottom:6}}>ISITHA GLOBAL</div><h1 style={{fontSize:42,margin:'0 0 12px'}}>Employee HR Onboarding</h1><p style={{fontSize:18,lineHeight:1.5,color:'#4b5563'}}>{existing?'Review and update your personal, payroll and emergency details.':'Complete your personal and employment information below.'}</p><Link href="/privacy">Read how Isitha Global uses and protects this information</Link></div><form onSubmit={handleSubmit}><section style={sectionStyle}><h2>Personal Details</h2><div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(260px, 1fr))',gap:20}}>{field('First Name','legal_first_name')}{field('Last Name','legal_last_name')}{field('South African ID / Passport Number','id_passport_number')}{field('SARS Income Tax Number','tax_number')}{field('Date of Birth','date_of_birth','date')}{field('Mobile Number','mobile_number')}{field('Personal Email Address','personal_email','email')}</div></section><section style={sectionStyle}><h2>Residential Address</h2><label htmlFor="residential_address" style={labelStyle}>Address</label><textarea id="residential_address" name="residential_address" required rows={4} defaultValue={value('residential_address')} style={{...inputStyle,resize:'vertical'}}/></section><section style={sectionStyle}><h2>Emergency Contact</h2><p style={{color:'#4b5563'}}>Please tell your emergency contact that Isitha Global will hold their name, relationship and phone number for emergency use.</p><div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(260px, 1fr))',gap:20}}>{field('Emergency Contact Name','emergency_contact_name')}{field('Relationship','emergency_contact_relationship')}{field('Emergency Contact Number','emergency_contact_number')}</div></section><section style={sectionStyle}><h2>Banking Details</h2><div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(260px, 1fr))',gap:20}}>{field('Bank','bank_name')}{field('Account Holder','account_holder')}{field('Account Number','account_number')}{field('Branch Code','bank_branch_code')}<div style={fieldStyle}><label htmlFor="account_type" style={labelStyle}>Account Type</label><select id="account_type" name="account_type" required defaultValue={value('account_type')} style={inputStyle}><option value="">Select</option><option value="current">Current / Cheque</option><option value="savings">Savings</option></select></div></div></section><section style={sectionStyle}><h2>Identification Document</h2><p style={{color:'#4b5563'}}>{existing?.id_document_path?'A document is already stored. Upload a replacement only if it has changed.':'Upload a clear copy of your South African ID document or passport.'}</p><label htmlFor="id_document" style={labelStyle}>ID or passport document</label><input id="id_document" name="id_document" type="file" accept="application/pdf,image/jpeg,image/png" required={!existing?.id_document_path} style={{...inputStyle,padding:18,background:'#f9fafb'}}/><small>PDF, JPG or PNG - maximum 10 MB.</small></section><section style={sectionStyle}><h2>Employee Declaration</h2><label style={{display:'flex',gap:12,alignItems:'flex-start',lineHeight:1.5}}><input type="checkbox" required style={{marginTop:5}}/><span>I confirm that the information is correct, I have read the privacy notice, and I understand Isitha Global processes it for employment, payroll, legal compliance and HR administration.</span></label><button disabled={saving} type="submit" style={{marginTop:28,width:'100%',padding:'15px 20px',border:0,borderRadius:8,background:'#111827',color:'white',fontSize:17,fontWeight:700,cursor:'pointer'}}>{saving?'Saving...':existing?'Save changes':'Submit to HR'}</button>{message&&<p role="status" style={{marginTop:20,padding:14,borderRadius:8,background:'#f3f4f6',fontWeight:600}}>{message}</p>}</section></form><p style={{marginTop:24}}><Link href="/">← Back to My Portal</Link></p></main>;
 }

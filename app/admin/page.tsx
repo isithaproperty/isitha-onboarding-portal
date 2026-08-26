@@ -44,6 +44,7 @@ type ComplianceData = {
   employees?: Employee[];
   training?: TrainingProgress[];
   policies?: PolicyAcknowledgement[];
+  assignableRoles?: string[];
   error?: string;
 };
 
@@ -57,7 +58,7 @@ const courseLabel = (item: TrainingProgress, index: number) => {
 };
 
 const roleLabel = (role?: string) =>
-  ({ staff: "Staff", manager: "Manager", hr_admin: "HR", admin: "Admin" }[role || "staff"] || "Staff");
+  ({ staff: "Staff", manager: "Manager", hr_admin: "HR", compliance_admin: "Compliance", admin: "Admin" }[role || "staff"] || "Staff");
 
 const value = (v?: string) => v || "Not provided";
 
@@ -100,6 +101,7 @@ export default function AdminPage() {
   const [staffError, setStaffError] = useState("");
   const [adminError, setAdminError] = useState("");
   const [employeeMessage, setEmployeeMessage] = useState("");
+  const [assignablePortalRoles, setAssignablePortalRoles] = useState<string[]>([]);
 
   async function loadAdminData() {
     try {
@@ -113,6 +115,7 @@ export default function AdminPage() {
       setRealEmployees(data.employees || []);
       setTrainingProgress(data.training || []);
       setPolicyAcknowledgements(data.policies || []);
+      setAssignablePortalRoles(data.assignableRoles || []);
     } catch {
       setAdminError("Unable to load employee compliance records.");
     }
@@ -268,7 +271,7 @@ export default function AdminPage() {
             <div className="card"><div className="muted">Active / submitted staff</div><div className="metric">{realEmployees.filter((e) => !["inactive", "leaver"].includes((e.status || "").toLowerCase())).length}</div></div>
           </div>
 
-          <section className="section">
+          {assignablePortalRoles.length>0&&<><section className="section">
             <div className="card">
               <h2>Contracts</h2>
               <p className="muted">Upload individual employee contracts and view signature status.</p>
@@ -285,16 +288,14 @@ export default function AdminPage() {
                 <label>Last name<input name="lastName" required /></label>
                 <label>Work email<input name="email" type="email" required /></label>
                 <label>Portal role
-                  <select name="role" defaultValue="staff">
-                    <option value="staff">Staff</option><option value="manager">Manager</option><option value="hr_admin">HR</option><option value="admin">Admin</option>
-                  </select>
+                  <select name="role" defaultValue="staff">{assignablePortalRoles.map(role=><option key={role} value={role}>{roleLabel(role)}</option>)}</select>
                 </label>
                 <div className="admin-form-actions"><button className="button" disabled={savingStaff}>{savingStaff ? "Adding staff..." : "Add staff and send invite"}</button></div>
               </form>
               {staffMessage && <p className="ok">{staffMessage}</p>}
               {staffError && <p className="warn">{staffError}</p>}
             </div>
-          </section>
+          </section></>}
 
           <section className="section">
             <div className="card">
@@ -335,7 +336,7 @@ export default function AdminPage() {
                                   <label>Email<input name="email" type="email" defaultValue={employee.personal_email || ""} /></label>
                                   <label>Mobile<input name="mobile" defaultValue={employee.mobile_number || ""} /></label>
                                   <label>Employment status<select name="status" defaultValue={(employee.status || "submitted").toLowerCase()}><option value="submitted">Submitted</option><option value="active">Active</option><option value="inactive">Inactive</option><option value="leaver">Leaver</option></select></label>
-                                  <label>Portal role<select name="role" defaultValue={(employee.role || "staff").toLowerCase()}><option value="staff">Staff</option><option value="manager">Manager</option><option value="hr_admin">HR</option><option value="admin">Admin</option></select></label>
+                                  <label>Portal role<select name="role" defaultValue={(employee.role || "staff").toLowerCase()}>{Array.from(new Set([employee.role||"staff",...assignablePortalRoles])).map(role=><option key={role} value={role}>{roleLabel(role)}</option>)}</select></label>
                                   <label>Annual leave entitlement (days)<input name="annualLeaveEntitlement" type="number" min="0" max="365" step="0.5" defaultValue={employee.annual_leave_entitlement ?? 20} required /></label>
                                   <div className="admin-form-actions"><button className="button" disabled={savingEmployee}>{savingEmployee ? "Saving..." : "Save employee"}</button></div>
                                 </form>

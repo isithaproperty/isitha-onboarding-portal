@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { Header } from '@/components/Header';
@@ -13,6 +13,10 @@ export default function TrainingPage() {
   const module = trainingModules.find((item) => item.slug === slug);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [acknowledged, setAcknowledged] = useState(false);
+
+  useEffect(()=>{void loadAcknowledgement()},[slug]);
+  async function loadAcknowledgement(){const{data:{user}}=await supabase.auth.getUser();if(!user)return;const{data:employee}=await supabase.from('employees').select('id').eq('auth_user_id',user.id).maybeSingle();if(!employee)return;const{data:course}=await supabase.from('training_courses').select('id').eq('slug',slug).maybeSingle();if(!course)return;const{data}=await supabase.from('training_acknowledgements').select('id').eq('employee_id',employee.id).eq('course_id',course.id).maybeSingle();setAcknowledged(Boolean(data))}
 
   if (!module) return <main className="shell"><Header /><section className="hero"><h1>Training module not found</h1><Link href="/">← Back to My Portal</Link></section></main>;
 
@@ -27,7 +31,8 @@ export default function TrainingPage() {
       if (courseError || !course) { setMessage('This training course could not be found.'); return; }
 
       const { error: acknowledgementError } = await supabase.from('training_acknowledgements').insert({ employee_id: employee.id, course_id: course.id, course_version: course.version });
-      if (acknowledgementError && acknowledgementError.code !== '23505') { setMessage(`Unable to save acknowledgement: ${acknowledgementError.message}`); return; }
+      if (acknowledgementError && acknowledgementError.code !== '23505') { setMessage('Unable to save the acknowledgement. Please try again.'); return; }
+      setAcknowledged(true);
 
       const requiresAssessment = slug === 'ohsa-awareness' || slug === 'popia-data-protection';
       if (!requiresAssessment) {
@@ -48,8 +53,8 @@ export default function TrainingPage() {
       </section>
       <section className="section"><div className="card"><h2>Training acknowledgement</h2><p>I confirm that I have read and understood this training module.</p><button className="button" onClick={acknowledgeTraining} disabled={saving} style={{ border: 0, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1 }}>{saving ? 'Saving...' : 'I have read and understood'}</button>{message && <p style={{ marginTop: 16, fontWeight: 600 }}>{message}</p>}</div></section>
       <section className="section">
-        {slug === 'ohsa-awareness' && message && <div style={{ marginBottom: 16 }}><Link href="/quiz" className="button">Take OHSA Assessment</Link></div>}
-        {slug === 'popia-data-protection' && message && <div style={{ marginBottom: 16 }}><Link href="/popia-quiz" className="button">Take POPIA Assessment</Link></div>}
+        {slug === 'ohsa-awareness' && acknowledged && <div style={{ marginBottom: 16 }}><Link href="/quiz" className="button">Take OHSA Assessment</Link></div>}
+        {slug === 'popia-data-protection' && acknowledged && <div style={{ marginBottom: 16 }}><Link href="/popia-quiz" className="button">Take POPIA Assessment</Link></div>}
         <Link href="/">← Back to My Portal</Link>
       </section>
     </main>
