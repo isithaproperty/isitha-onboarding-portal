@@ -41,3 +41,13 @@ test('database migration removes overlapping leave policies', async () => {
   assert.match(migration, /leave_update_authorised_not_self/);
   assert.match(migration, /revoke all on public\.leave_requests from anon/);
 });
+
+test('password recovery returns users to the set-password page', async () => {
+  const login = await read('app/login/page.tsx');
+  const setPassword = await read('app/set-password/page.tsx');
+  assert.match(login, /resetPasswordForEmail/);
+  assert.match(login, /window\.location\.origin}\/set-password/);
+  assert.match(login, /Forgot password/);
+  assert.match(setPassword, /exchangeCodeForSession/);
+  assert.match(setPassword, /updateUser\(\{ password \}\)/);
+});
