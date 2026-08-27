@@ -11,6 +11,28 @@ export default function LoginPage() {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
 
+  async function handleForgotPassword() {
+    const cleanEmail = email.trim();
+    if (!cleanEmail) {
+      setMessage('Enter your email address first, then select Forgot password.');
+      return;
+    }
+
+    setLoading(true);
+    setMessage('');
+    const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+      redirectTo: `${window.location.origin}/set-password`,
+    });
+    setLoading(false);
+
+    if (error) {
+      setMessage('Unable to send the reset email. Please try again or contact HR.');
+      return;
+    }
+
+    setMessage('Password reset email sent. Open the newest email and follow its link.');
+  }
+
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -66,7 +88,10 @@ export default function LoginPage() {
             </div>
 
             <button type="submit" className="button" disabled={loading} style={{ cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}>
-              {loading ? 'Signing in...' : 'Sign in'}
+              {loading ? 'Please wait...' : 'Sign in'}
+            </button>
+            <button type="button" className="button secondary" disabled={loading} onClick={handleForgotPassword}>
+              Forgot password
             </button>
           </form>
 
