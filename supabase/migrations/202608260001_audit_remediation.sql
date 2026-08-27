@@ -1,6 +1,20 @@
 -- Audit remediation for the Isitha Global onboarding portal.
 -- Apply through the normal Supabase migration workflow before deploying the matching application release.
 
+-- Resolve portal roles from trusted Auth app metadata without elevated database privileges.
+create or replace function public.current_portal_role()
+returns text
+language sql
+stable
+security invoker
+set search_path = ''
+as $
+  select lower(coalesce((select auth.jwt())->'app_metadata'->>'role', 'staff'))
+$;
+
+revoke all on function public.current_portal_role() from public;
+grant execute on function public.current_portal_role() to authenticated, service_role;
+
 -- Repair existing employee/login links and prevent duplicate links.
 update public.employees e
 set auth_user_id = u.id
