@@ -25,10 +25,16 @@ export async function GET() {
 
     const authUsers = usersResult.data.users || [];
     const authById = new Map(authUsers.map((authUser) => [authUser.id, authUser]));
+    const employeeIdByAuthId = new Map(
+      (employeesResult.data || [])
+        .filter((employee) => employee.auth_user_id)
+        .map((employee) => [employee.auth_user_id as string, employee.id]),
+    );
     const employees = (employeesResult.data || []).map((employee) => {
       const authUser = employee.auth_user_id ? authById.get(employee.auth_user_id) : undefined;
       return {
         ...employee,
+        manager_id: employee.manager_id ? employeeIdByAuthId.get(employee.manager_id) || null : null,
         role: normaliseRole(authUser?.app_metadata?.role),
       };
     });
@@ -54,6 +60,7 @@ export async function PATCH(request: Request) {
     if (managerId === employeeId) return NextResponse.json({ error: 'An employee cannot be their own manager.' }, { status: 400 });
 
     const admin = createSupabaseAdminClient();
+    let storedManagerAuthUserId: string | null = null;
     if (managerId) {
       const { data: managerRecord, error: managerRecordError } = await admin.from('employees').select('auth_user_id').eq('id', managerId).maybeSingle();
       if (managerRecordError) throw managerRecordError;
@@ -64,10 +71,11 @@ export async function PATCH(request: Request) {
       if (!MANAGER_ROLES.has(managerRole)) {
         return NextResponse.json({ error: 'The selected person must have Manager, HR or Admin portal access.' }, { status: 400 });
       }
+      storedManagerAuthUserId = managerRecord.auth_user_id;
     }
 
     const { data, error } = await admin.from('employees')
-      .update({ manager_id: managerId })
+      .update({ manager_id: storedManagerAuthUserId })
       .eq('id', employeeId)
       .select('id,email,first_name,last_name,manager_id')
       .maybeSingle();
