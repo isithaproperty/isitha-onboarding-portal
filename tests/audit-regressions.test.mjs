@@ -51,3 +51,10 @@ test('password recovery returns users to the set-password page', async () => {
   assert.match(setPassword, /exchangeCodeForSession/);
   assert.match(setPassword, /updateUser\(\{ password \}\)/);
 });
+
+test('legacy manager links are repaired through employee identities', async () => {
+  const migration = await read('supabase/migrations/202608270001_repair_manager_links.sql');
+  assert.match(migration, /employee\.manager_id = manager\.auth_user_id/);
+  assert.match(migration, /set manager_id = manager\.id/);
+  assert.match(migration, /employee\.id <> manager\.id/);
+});
