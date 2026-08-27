@@ -8,14 +8,14 @@ export default function SetPasswordPage() {
   const router = useRouter();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [message, setMessage] = useState('Preparing your invitation...');
+  const [message, setMessage] = useState('Preparing your secure password link...');
   const [ready, setReady] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     let active = true;
 
-    async function prepareInviteSession() {
+    async function preparePasswordSession() {
       try {
         const currentUrl = new URL(window.location.href);
         const code = currentUrl.searchParams.get('code');
@@ -43,22 +43,22 @@ export default function SetPasswordPage() {
         const { data, error } = await supabase.auth.getSession();
         if (error) throw error;
         if (!data.session) {
-          throw new Error('This invitation link is invalid or has expired. Please ask HR to send a new invitation.');
+          throw new Error('This password link is invalid or has expired. Return to Sign in and request a new reset email.');
         }
 
         if (active) {
           setReady(true);
-          setMessage('Create a password for your Isitha Staff Portal account.');
+          setMessage('Create a new password for your Isitha Staff Portal account.');
         }
       } catch (error) {
         if (active) {
           setReady(false);
-          setMessage(error instanceof Error ? error.message : 'Unable to open this invitation.');
+          setMessage(error instanceof Error ? error.message : 'Unable to open this password link.');
         }
       }
     }
 
-    prepareInviteSession();
+    preparePasswordSession();
     return () => { active = false; };
   }, []);
 
@@ -83,7 +83,7 @@ export default function SetPasswordPage() {
       return;
     }
 
-    setMessage('Password created. Opening your staff portal...');
+    setMessage('Password updated. Opening your staff portal...');
     router.push('/');
     router.refresh();
   }
@@ -98,7 +98,7 @@ export default function SetPasswordPage() {
             <span>Onboarding, contracts, leave & compliance</span>
           </div>
 
-          <h1 style={{ marginBottom: 8, color: 'var(--isitha-navy)' }}>Create your password</h1>
+          <h1 style={{ marginBottom: 8, color: 'var(--isitha-navy)' }}>Create a new password</h1>
           <p className="muted">{message}</p>
 
           {ready && (
@@ -135,7 +135,7 @@ export default function SetPasswordPage() {
                 disabled={loading}
                 style={{ cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}
               >
-                {loading ? 'Creating password...' : 'Create password & continue'}
+                {loading ? 'Creating password...' : 'Save password & continue'}
               </button>
             </form>
           )}
