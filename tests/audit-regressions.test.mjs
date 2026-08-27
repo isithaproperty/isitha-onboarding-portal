@@ -52,9 +52,13 @@ test('password recovery returns users to the set-password page', async () => {
   assert.match(setPassword, /updateUser\(\{ password \}\)/);
 });
 
-test('legacy manager links are repaired through employee identities', async () => {
+test('manager assignments consistently use Auth user IDs', async () => {
   const migration = await read('supabase/migrations/202608270001_repair_manager_links.sql');
-  assert.match(migration, /employee\.manager_id = manager\.auth_user_id/);
-  assert.match(migration, /set manager_id = manager\.id/);
-  assert.match(migration, /employee\.id <> manager\.id/);
+  const assignments = await read('app/api/admin/manager-assignments/route.ts');
+  const team = await read('app/api/leave/team/route.ts');
+  const decision = await read('app/api/leave/team/[requestId]/route.ts');
+  assert.match(migration, /e\.manager_id=\(select auth\.uid\(\)\)/);
+  assert.match(assignments, /storedManagerAuthUserId = managerRecord\.auth_user_id/);
+  assert.match(team, /\.eq\('manager_id', user\.id\)/);
+  assert.match(decision, /\.eq\('manager_id', user\.id\)/);
 });
