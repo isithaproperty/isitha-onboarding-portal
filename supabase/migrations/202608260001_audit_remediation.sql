@@ -8,9 +8,9 @@ language sql
 stable
 security invoker
 set search_path = ''
-as $
+as $function$
   select lower(coalesce((select auth.jwt())->'app_metadata'->>'role', 'staff'))
-$;
+$function$;
 
 revoke all on function public.current_portal_role() from public;
 grant execute on function public.current_portal_role() to authenticated, service_role;
