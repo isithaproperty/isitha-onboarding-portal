@@ -40,10 +40,20 @@ type TrainingProgress = {
 };
 
 type PolicyAcknowledgement = { employee_id: string };
+type SignedContract = {
+  id: string;
+  employee_id: string;
+  original_filename: string;
+  status: string;
+  signed_at?: string | null;
+  signer_name?: string | null;
+  url?: string | null;
+};
 type ComplianceData = {
   employees?: Employee[];
   training?: TrainingProgress[];
   policies?: PolicyAcknowledgement[];
+  contracts?: SignedContract[];
   assignableRoles?: string[];
   error?: string;
 };
@@ -93,6 +103,7 @@ export default function AdminPage() {
   const [realEmployees, setRealEmployees] = useState<Employee[]>([]);
   const [trainingProgress, setTrainingProgress] = useState<TrainingProgress[]>([]);
   const [policyAcknowledgements, setPolicyAcknowledgements] = useState<PolicyAcknowledgement[]>([]);
+  const [signedContracts, setSignedContracts] = useState<SignedContract[]>([]);
   const [expandedEmployee, setExpandedEmployee] = useState<string | null>(null);
   const [editingEmployee, setEditingEmployee] = useState<string | null>(null);
   const [savingEmployee, setSavingEmployee] = useState(false);
@@ -115,6 +126,7 @@ export default function AdminPage() {
       setRealEmployees(data.employees || []);
       setTrainingProgress(data.training || []);
       setPolicyAcknowledgements(data.policies || []);
+      setSignedContracts(data.contracts || []);
       setAssignablePortalRoles(data.assignableRoles || []);
     } catch {
       setAdminError("Unable to load employee compliance records.");
@@ -308,6 +320,7 @@ export default function AdminPage() {
                   <tbody>
                     {realEmployees.map((employee) => {
                       const employeeTraining = trainingProgress.filter((i) => i.employee_id === employee.employee_id);
+                      const employeeContracts = signedContracts.filter((contract) => contract.employee_id === employee.employee_id);
                       const accepted = policyAcknowledgements.some((i) => i.employee_id === employee.employee_id);
                       const expanded = expandedEmployee === employee.id;
                       const editing = editingEmployee === employee.id;
@@ -361,6 +374,8 @@ export default function AdminPage() {
                                   <h4>Training & Compliance</h4>
                                   {employeeTraining.length ? employeeTraining.map((i, x) => <p key={`${employee.id}-${x}`}>{courseLabel(i, x)}: <strong>{i.progress_percent}%</strong>{i.completed_at ? ` — completed ${new Date(i.completed_at).toLocaleDateString()}` : ""}</p>) : <p>Training not started.</p>}
                                   <p><strong>Policies:</strong> {accepted ? "Accepted" : "Outstanding"}</p>
+                                  <h4>Employment Contracts</h4>
+                                  {employeeContracts.length === 0 ? <p>No signed contracts on record.</p> : employeeContracts.map((contract) => <div key={contract.id} style={{marginBottom:12}}><p><strong>{contract.original_filename}</strong></p><p className="muted">Signed {contract.signed_at ? new Date(contract.signed_at).toLocaleString() : "date not recorded"}{contract.signer_name ? ` by ${contract.signer_name}` : ""}</p>{contract.url && <a className="button secondary" href={contract.url} target="_blank" rel="noreferrer">Open signed contract</a>}</div>)}
                                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 16 }}>
                                     <button className="button" type="button" onClick={() => printOnboardingRecord(employee)}>Print / Save Onboarding PDF</button>
                                     <button className="button secondary" type="button" onClick={() => printTrainingRecord(employee, employeeTraining)}>Print / Save Training PDF</button>
