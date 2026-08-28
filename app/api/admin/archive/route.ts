@@ -63,8 +63,10 @@ export async function POST(request: Request) {
     if (onboardingError) throw onboardingError;
     if (!onboarding) return NextResponse.json({ error: 'No onboarding record was found for this employee.' }, { status: 404 });
 
-    const onboardingAlreadyArchived = Boolean(onboarding.archived_at) || String(onboarding.status || '').toLowerCase() === 'archived';
-    if (!onboardingAlreadyArchived && String(onboarding.status || '').toLowerCase() !== 'submitted') {
+    const currentStatus = String(onboarding.status || '').toLowerCase();
+    const onboardingAlreadyArchived = Boolean(onboarding.archived_at) || currentStatus === 'archived';
+    const archiveInProgress = currentStatus === 'archive_pending';
+    if (!onboardingAlreadyArchived && !archiveInProgress && currentStatus !== 'submitted') {
       return NextResponse.json({ error: 'Only submitted onboarding records can be archived.' }, { status: 409 });
     }
 
@@ -77,6 +79,15 @@ export async function POST(request: Request) {
     }
     if (onboardingAlreadyArchived && activeContracts.length === 0) {
       return NextResponse.json({ error: 'There is no new private portal data to archive for this employee.' }, { status: 409 });
+    }
+
+    if (!onboardingAlreadyArchived && !archiveInProgress) {
+      const { error: pendingError } = await admin.from('employee_hr_onboarding').update({
+        status: 'archive_pending',
+        archived_by: user.id,
+        updated_at: new Date().toISOString(),
+      }).eq('employee_id', employeeId).eq('status', 'submitted');
+      if (pendingError) throw pendingError;
     }
 
     if (!onboardingAlreadyArchived && onboarding.id_document_path) {
@@ -115,7 +126,7 @@ export async function POST(request: Request) {
         archived_at: archivedAt,
         archived_by: user.id,
         updated_at: archivedAt,
-      }).eq('employee_id', employeeId);
+      }).eq('employee_id', employeeId).in('status', ['submitted', 'archive_pending']);
       if (updateOnboardingError) throw updateOnboardingError;
     }
 
@@ -134,6 +145,6 @@ export async function POST(request: Request) {
       archivedAt,
     });
   } catch (error) {
-    return NextResponse.json({ error: safeApiError(error, 'The employee record could not be archived.') }, { status: 500 });
+    return NextResponse.json({ error: safeApiError(error, 'The archive could not be completed. No further changes will be made until HR retries the archive action.') }, { status: 500 });
   }
 }
