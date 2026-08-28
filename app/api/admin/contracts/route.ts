@@ -8,14 +8,22 @@ export async function GET() {
   try {
     const user = await getAuthenticatedUser();
     if (!user) return NextResponse.json({ error: 'Please sign in again.' }, { status: 401 });
-    if (!canManageContracts(roleForUser(user))) return NextResponse.json({ error: 'This area is for Manager, HR and Admin only.' }, { status: 403 });
+    const role = roleForUser(user);
+    if (!canManageContracts(role)) return NextResponse.json({ error: 'This area is for Manager, HR and Admin only.' }, { status: 403 });
 
     const admin = createSupabaseAdminClient();
-    const [employeeResult, contractResult] = await Promise.all([
-      admin.from('employees').select('id,first_name,last_name').order('first_name'),
-      admin.from('employee_contracts').select('*').is('archived_at', null).order('uploaded_at', { ascending: false }),
-    ]);
+    let employeeQuery = admin.from('employees').select('id,first_name,last_name').order('first_name');
+    if (role === 'manager') employeeQuery = employeeQuery.eq('manager_id', user.id);
+    const employeeResult = await employeeQuery;
     if (employeeResult.error) throw employeeResult.error;
+
+    const employeeIds = (employeeResult.data || []).map(e => e.id);
+    let contractQuery = admin.from('employee_contracts').select('*').is('archived_at', null).order('uploaded_at', { ascending: false });
+    if (role === 'manager') {
+      if (employeeIds.length === 0) return NextResponse.json({ employees: [], contracts: [] });
+      contractQuery = contractQuery.in('employee_id', employeeIds);
+    }
+    const contractResult = await contractQuery;
     if (contractResult.error) throw contractResult.error;
 
     const contracts = await Promise.all((contractResult.data || []).map(async contract => {
@@ -36,7 +44,8 @@ export async function POST(request: Request) {
   try {
     const user = await getAuthenticatedUser();
     if (!user) return NextResponse.json({ error: 'Please sign in again.' }, { status: 401 });
-    if (!canManageContracts(roleForUser(user))) return NextResponse.json({ error: 'This area is for Manager, HR and Admin only.' }, { status: 403 });
+    const role = roleForUser(user);
+    if (!canManageContracts(role)) return NextResponse.json({ error: 'This area is for Manager, HR and Admin only.' }, { status: 403 });
 
     const form = await request.formData();
     const employeeId = clean(form.get('employee_id'));
@@ -46,6 +55,12 @@ export async function POST(request: Request) {
     }
 
     const admin = createSupabaseAdminClient();
+    if (role === 'manager') {
+      const { data: managedEmployee, error: managedEmployeeError } = await admin.from('employees').select('id').eq('id', employeeId).eq('manager_id', user.id).maybeSingle();
+      if (managedEmployeeError) throw managedEmployeeError;
+      if (!managedEmployee) return NextResponse.json({ error: 'Managers can only upload contracts for employees assigned to their team.' }, { status: 403 });
+    }
+
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
     const path = `${employeeId}/${Date.now()}-${safeName}`;
     const bytes = new Uint8Array(await file.arrayBuffer());
