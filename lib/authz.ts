@@ -17,7 +17,11 @@ export function normaliseRole(value: unknown): PortalRole {
 }
 
 export function canViewHr(role: PortalRole) {
-  return role === 'hr_admin' || role === 'compliance_admin' || role === 'admin';
+  return role === 'hr_admin' || role === 'admin';
+}
+
+export function canViewCompliance(role: PortalRole) {
+  return role === 'compliance_admin' || role === 'hr_admin' || role === 'admin';
 }
 
 export function canManageManagers(role: PortalRole) {
