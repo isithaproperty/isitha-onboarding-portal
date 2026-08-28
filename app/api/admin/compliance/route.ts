@@ -14,12 +14,12 @@ export async function GET() {
 
     const [employeesResult, staffResult, trainingResult, coursesResult, policyResult, usersResult, contractsResult] = await Promise.all([
       admin.from('employee_hr_onboarding').select('*'),
-      admin.from('employees').select('id,auth_user_id,annual_leave_entitlement'),
+      admin.from('employees').select('id,auth_user_id,first_name,last_name,email,annual_leave_entitlement'),
       admin.from('training_progress').select('employee_id,course_id,progress_percent,completed_at'),
       admin.from('training_courses').select('id,slug,title'),
       admin.from('employee_document_acknowledgements').select('employee_id,acknowledged'),
       admin.auth.admin.listUsers({ page: 1, perPage: 1000 }),
-      admin.from('employee_contracts').select('id,employee_id,original_filename,status,signed_at,signer_name,signed_file_path,file_path').eq('status','signed').order('signed_at',{ascending:false}),
+      admin.from('employee_contracts').select('id,employee_id,original_filename,status,signed_at,signer_name,signed_file_path,file_path,archived_at').eq('status','signed').is('archived_at',null).order('signed_at',{ascending:false}),
     ]);
 
     const error = employeesResult.error || staffResult.error || trainingResult.error || coursesResult.error || policyResult.error || usersResult.error || contractsResult.error;
@@ -33,12 +33,15 @@ export async function GET() {
       const staffRecord = staffByEmployee.get(employee.employee_id);
       const authUser = staffRecord?.auth_user_id ? authById.get(staffRecord.auth_user_id) : undefined;
       let idDocumentUrl: string | null = null;
-      if (employee.id_document_path) {
+      if (employee.id_document_path && !employee.archived_at) {
         const { data } = await admin.storage.from('employee-hr-documents').createSignedUrl(employee.id_document_path, 300);
         idDocumentUrl = data?.signedUrl || null;
       }
       return {
         ...employee,
+        legal_first_name: employee.legal_first_name || staffRecord?.first_name || null,
+        legal_last_name: employee.legal_last_name || staffRecord?.last_name || null,
+        personal_email: employee.personal_email || staffRecord?.email || null,
         id_document_url: idDocumentUrl,
         role: clean(authUser?.app_metadata?.role).toLowerCase() || 'staff',
         annual_leave_entitlement: Number(staffRecord?.annual_leave_entitlement ?? 20),
