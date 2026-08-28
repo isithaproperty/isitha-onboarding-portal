@@ -12,8 +12,8 @@ export async function GET() {
 
     const admin = createSupabaseAdminClient();
     const [employeeResult, contractResult] = await Promise.all([
-      admin.from('employee_hr_onboarding').select('employee_id,legal_first_name,legal_last_name').order('legal_first_name'),
-      admin.from('employee_contracts').select('*').order('uploaded_at', { ascending: false }),
+      admin.from('employees').select('id,first_name,last_name').order('first_name'),
+      admin.from('employee_contracts').select('*').is('archived_at', null).order('uploaded_at', { ascending: false }),
     ]);
     if (employeeResult.error) throw employeeResult.error;
     if (contractResult.error) throw contractResult.error;
@@ -24,7 +24,7 @@ export async function GET() {
     }));
 
     return NextResponse.json({
-      employees: (employeeResult.data || []).map(e => ({ id: e.employee_id, first_name: e.legal_first_name, last_name: e.legal_last_name })),
+      employees: (employeeResult.data || []).map(e => ({ id: e.id, first_name: e.first_name, last_name: e.last_name })),
       contracts,
     });
   } catch (error) {
