@@ -1,0 +1,10 @@
+-- Cover foreign keys used by audit/compliance workflows.
+create index if not exists data_subject_requests_employee_idx on public.data_subject_requests(employee_id);
+create index if not exists data_subject_requests_resolved_by_idx on public.data_subject_requests(resolved_by);
+create index if not exists employee_contracts_uploaded_by_idx on public.employee_contracts(uploaded_by);
+create index if not exists employee_contracts_signed_by_idx on public.employee_contracts(signed_by);
+create index if not exists leave_requests_decided_by_idx on public.leave_requests(decided_by);
+create index if not exists quiz_attempts_employee_idx on public.quiz_attempts(employee_id);
+create index if not exists quiz_attempts_course_idx on public.quiz_attempts(course_id);
+create index if not exists training_acknowledgements_course_idx on public.training_acknowledgements(course_id);
+create index if not exists training_progress_course_idx on public.training_progress(course_id);
