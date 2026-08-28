@@ -67,7 +67,7 @@ export default function LeavePage() {
   async function load(){
     const {data:{user}}=await supabase.auth.getUser();
     if(!user){router.push('/login');return;}
-    let {data:employee}=await supabase.from('employees').select('id').eq('id',user.id).maybeSingle();
+    let {data:employee}=await supabase.from('employees').select('id').eq('auth_user_id',user.id).maybeSingle();
     if(!employee&&user.email){const byEmail=await supabase.from('employees').select('id').eq('email',user.email.toLowerCase()).maybeSingle();employee=byEmail.data;}
     if(!employee){setErrorMessage('Your employee profile could not be found. Please contact HR.');setLoadingRequests(false);return;}
     setEmployeeId(employee.id);await Promise.all([loadRequests(employee.id),loadBalance(employee.id),loadSickBalance(employee.id)]);
@@ -91,7 +91,7 @@ export default function LeavePage() {
       const safeName=certificate.name.replace(/[^a-zA-Z0-9._-]/g,'_');
       medicalCertificatePath=`${employeeId}/${Date.now()}-${safeName}`;
       const {error:uploadError}=await supabase.storage.from('medical-certificates').upload(medicalCertificatePath,certificate,{upsert:false});
-      if(uploadError){setErrorMessage(`Medical certificate could not be uploaded: ${uploadError.message}`);setSubmitting(false);return;}
+      if(uploadError){if(process.env.NODE_ENV!=='production')console.error(uploadError);setErrorMessage('Medical certificate could not be uploaded. Please check the file type and size and try again.');setSubmitting(false);return;}
     }
     const payload={employee_id:employeeId,leave_type:selectedLeaveType,start_date:startDate,end_date:endDate,reason,status:'pending',medical_certificate_path:medicalCertificatePath};
     const {error}=await supabase.from('leave_requests').insert(payload);

@@ -3,6 +3,13 @@ import { createSupabaseAdminClient } from '@/lib/supabase-admin';
 import { canManageContracts } from '@/lib/authz';
 import { getAuthenticatedUser, roleForUser, safeApiError } from '@/lib/server-auth';
 const clean = (value: unknown) => typeof value === 'string' ? value.trim() : '';
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+const ALLOWED_CONTRACT_MIME_TYPES = new Set([
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+]);
+const ALLOWED_CONTRACT_EXTENSIONS = new Set(['pdf', 'doc', 'docx']);
 
 export async function GET() {
   try {
@@ -54,6 +61,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Select an employee and contract file.' }, { status: 400 });
     }
 
+    const extension = file.name.split('.').pop()?.toLowerCase() || '';
+    if (!ALLOWED_CONTRACT_EXTENSIONS.has(extension) || !ALLOWED_CONTRACT_MIME_TYPES.has(file.type)) {
+      return NextResponse.json({ error: 'Contract must be a PDF, DOC or DOCX file.' }, { status: 400 });
+    }
+    if (file.size <= 0 || file.size > MAX_UPLOAD_BYTES) {
+      return NextResponse.json({ error: 'Contract must be 10 MB or smaller.' }, { status: 400 });
+    }
+
     const admin = createSupabaseAdminClient();
     if (role === 'manager') {
       const { data: managedEmployee, error: managedEmployeeError } = await admin.from('employees').select('id').eq('id', employeeId).eq('manager_id', user.id).maybeSingle();
@@ -66,7 +81,7 @@ export async function POST(request: Request) {
     const bytes = new Uint8Array(await file.arrayBuffer());
 
     const { error: uploadError } = await admin.storage.from('employee-contracts').upload(path, bytes, {
-      contentType: file.type || 'application/octet-stream',
+      contentType: file.type,
       upsert: false,
     });
     if (uploadError) throw uploadError;
