@@ -17,7 +17,7 @@ export async function GET() {
     if (role === 'manager') {
       const manager = await resolveEmployeeForUser(user);
       if (!manager) return NextResponse.json({ error: 'Your manager profile is not linked. Please contact HR.' }, { status: 409 });
-      const { data: assigned, error } = await admin.from('employees').select('id').eq('manager_id', manager.id);
+      const { data: assigned, error } = await admin.from('employees').select('id').eq('manager_id', user.id);
       if (error) throw error;
       employeeIds = (assigned || []).map(row => row.id);
       if (employeeIds.length === 0) return NextResponse.json({ requests: [] });

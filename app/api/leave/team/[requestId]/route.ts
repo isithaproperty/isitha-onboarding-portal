@@ -24,7 +24,7 @@ async function authorisedRequest(requestId: string) {
 
   if (role === 'manager') {
     const { data: assigned, error: assignedError } = await admin.from('employees')
-      .select('id').eq('id', leave.employee_id).eq('manager_id', reviewer.id).maybeSingle();
+      .select('id').eq('id', leave.employee_id).eq('manager_id', user.id).maybeSingle();
     if (assignedError) throw assignedError;
     if (!assigned) return { response: NextResponse.json({ error: 'This employee is not assigned to you.' }, { status: 403 }) };
   }
