@@ -32,8 +32,9 @@ export async function GET() {
     const employees = await Promise.all((employeesResult.data || []).map(async (employee) => {
       const staffRecord = staffByEmployee.get(employee.employee_id);
       const authUser = staffRecord?.auth_user_id ? authById.get(staffRecord.auth_user_id) : undefined;
+      const archived = Boolean(employee.archived_at) || String(employee.status || '').toLowerCase() === 'archived';
       let idDocumentUrl: string | null = null;
-      if (employee.id_document_path && !employee.archived_at) {
+      if (employee.id_document_path && !archived) {
         const { data } = await admin.storage.from('employee-hr-documents').createSignedUrl(employee.id_document_path, 300);
         idDocumentUrl = data?.signedUrl || null;
       }
@@ -41,7 +42,20 @@ export async function GET() {
         ...employee,
         legal_first_name: employee.legal_first_name || staffRecord?.first_name || null,
         legal_last_name: employee.legal_last_name || staffRecord?.last_name || null,
-        personal_email: employee.personal_email || staffRecord?.email || null,
+        personal_email: archived ? 'Archived' : (employee.personal_email || staffRecord?.email || null),
+        id_passport_number: archived ? 'Archived' : employee.id_passport_number,
+        tax_number: archived ? 'Archived' : employee.tax_number,
+        date_of_birth: archived ? 'Archived' : employee.date_of_birth,
+        mobile_number: archived ? 'Archived' : employee.mobile_number,
+        residential_address: archived ? 'Archived' : employee.residential_address,
+        emergency_contact_name: archived ? 'Archived' : employee.emergency_contact_name,
+        emergency_contact_relationship: archived ? 'Archived' : employee.emergency_contact_relationship,
+        emergency_contact_number: archived ? 'Archived' : employee.emergency_contact_number,
+        bank_name: archived ? 'Archived' : employee.bank_name,
+        account_holder: archived ? 'Archived' : employee.account_holder,
+        account_number: archived ? 'Archived' : employee.account_number,
+        bank_branch_code: archived ? 'Archived' : employee.bank_branch_code,
+        account_type: archived ? 'Archived' : employee.account_type,
         id_document_url: idDocumentUrl,
         role: clean(authUser?.app_metadata?.role).toLowerCase() || 'staff',
         annual_leave_entitlement: Number(staffRecord?.annual_leave_entitlement ?? 20),
