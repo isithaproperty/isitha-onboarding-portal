@@ -62,10 +62,9 @@ export async function POST(request: Request) {
       .select('*').eq('employee_id', employeeId).maybeSingle();
     if (onboardingError) throw onboardingError;
     if (!onboarding) return NextResponse.json({ error: 'No onboarding record was found for this employee.' }, { status: 404 });
-    if (onboarding.archived_at || String(onboarding.status || '').toLowerCase() === 'archived') {
-      return NextResponse.json({ error: 'This employee record has already been archived.' }, { status: 409 });
-    }
-    if (String(onboarding.status || '').toLowerCase() !== 'submitted') {
+
+    const onboardingAlreadyArchived = Boolean(onboarding.archived_at) || String(onboarding.status || '').toLowerCase() === 'archived';
+    if (!onboardingAlreadyArchived && String(onboarding.status || '').toLowerCase() !== 'submitted') {
       return NextResponse.json({ error: 'Only submitted onboarding records can be archived.' }, { status: 409 });
     }
 
@@ -76,8 +75,11 @@ export async function POST(request: Request) {
     if (activeContracts.some(contract => contract.status !== 'signed')) {
       return NextResponse.json({ error: 'This employee still has a contract awaiting signature. Complete or remove it before archiving.' }, { status: 409 });
     }
+    if (onboardingAlreadyArchived && activeContracts.length === 0) {
+      return NextResponse.json({ error: 'There is no new private portal data to archive for this employee.' }, { status: 409 });
+    }
 
-    if (onboarding.id_document_path) {
+    if (!onboardingAlreadyArchived && onboarding.id_document_path) {
       const { error } = await admin.storage.from('employee-hr-documents').remove([onboarding.id_document_path]);
       if (error) throw error;
     }
@@ -89,31 +91,33 @@ export async function POST(request: Request) {
     }
 
     const archivedAt = new Date().toISOString();
-    const { error: updateOnboardingError } = await admin.from('employee_hr_onboarding').update({
-      legal_first_name: null,
-      legal_last_name: null,
-      id_passport_number: null,
-      date_of_birth: null,
-      nationality: null,
-      mobile_number: null,
-      personal_email: null,
-      residential_address: null,
-      emergency_contact_name: null,
-      emergency_contact_relationship: null,
-      emergency_contact_number: null,
-      bank_name: null,
-      account_holder: null,
-      account_number: null,
-      account_type: null,
-      tax_number: null,
-      id_document_path: null,
-      bank_branch_code: null,
-      status: 'archived',
-      archived_at: archivedAt,
-      archived_by: user.id,
-      updated_at: archivedAt,
-    }).eq('employee_id', employeeId);
-    if (updateOnboardingError) throw updateOnboardingError;
+    if (!onboardingAlreadyArchived) {
+      const { error: updateOnboardingError } = await admin.from('employee_hr_onboarding').update({
+        legal_first_name: null,
+        legal_last_name: null,
+        id_passport_number: null,
+        date_of_birth: null,
+        nationality: null,
+        mobile_number: null,
+        personal_email: null,
+        residential_address: null,
+        emergency_contact_name: null,
+        emergency_contact_relationship: null,
+        emergency_contact_number: null,
+        bank_name: null,
+        account_holder: null,
+        account_number: null,
+        account_type: null,
+        tax_number: null,
+        id_document_path: null,
+        bank_branch_code: null,
+        status: 'archived',
+        archived_at: archivedAt,
+        archived_by: user.id,
+        updated_at: archivedAt,
+      }).eq('employee_id', employeeId);
+      if (updateOnboardingError) throw updateOnboardingError;
+    }
 
     if (activeContracts.length > 0) {
       const { error: updateContractsError } = await admin.from('employee_contracts').update({
@@ -124,7 +128,9 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({
-      message: 'Private onboarding data and contract files were removed from the portal. Minimal audit records were retained.',
+      message: onboardingAlreadyArchived
+        ? 'New signed contract files were removed from the portal and their signature audit records were retained.'
+        : 'Private onboarding data and signed contract files were removed from the portal. Minimal audit records were retained.',
       archivedAt,
     });
   } catch (error) {
