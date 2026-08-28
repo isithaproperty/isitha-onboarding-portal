@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { canManageContracts, canManageManagers, canReviewLeave, canViewHr, normaliseRole, type PortalRole } from '@/lib/authz';
+import { canManageContracts, canManageManagers, canReviewLeave, canViewCompliance, canViewHr, normaliseRole, type PortalRole } from '@/lib/authz';
 import { supabase } from '@/lib/supabase';
 
 export function Header(){
@@ -41,5 +41,5 @@ export function Header(){
   },[]);
 
   const canArchive=role==='hr_admin'||role==='admin';
-  return <header className="site-header"><Link href="/" className="brand-lockup" aria-label="Isitha Global home"><img src="/isitha-global-logo.webp" alt="Isitha Global" className="brand-logo"/><div className="brand-copy"><strong>Staff Portal</strong><span>Onboarding & Compliance</span></div></Link><nav className="site-nav" aria-label="Portal navigation"><Link href="/">My Portal</Link>{showMyDetails&&<Link href="/onboarding">My details</Link>}<Link href="/privacy">Privacy</Link>{canReviewLeave(role)&&<Link href="/leave/team" className="nav-with-badge">Team Leave{pendingLeaveCount>0&&<span className="nav-badge" aria-label={`${pendingLeaveCount} pending leave ${pendingLeaveCount===1?'request':'requests'}`}>{pendingLeaveCount}</span>}</Link>}{canViewHr(role)&&<Link href="/admin">HR Admin</Link>}{canViewHr(role)&&<Link href="/admin/leave">Staff Leave</Link>}{canArchive&&<Link href="/admin/archive">HR Archive</Link>}{canManageManagers(role)&&<Link href="/admin/managers">Manager Allocation</Link>}{canManageContracts(role)&&<Link href="/contracts/manage">Contracts</Link>}</nav></header>;
+  return <header className="site-header"><Link href="/" className="brand-lockup" aria-label="Isitha Global home"><img src="/isitha-global-logo.webp" alt="Isitha Global" className="brand-logo"/><div className="brand-copy"><strong>Staff Portal</strong><span>Onboarding & Compliance</span></div></Link><nav className="site-nav" aria-label="Portal navigation"><Link href="/">My Portal</Link>{showMyDetails&&<Link href="/onboarding">My details</Link>}<Link href="/privacy">Privacy</Link>{canReviewLeave(role)&&<Link href="/leave/team" className="nav-with-badge">Team Leave{pendingLeaveCount>0&&<span className="nav-badge" aria-label={`${pendingLeaveCount} pending leave ${pendingLeaveCount===1?'request':'requests'}`}>{pendingLeaveCount}</span>}</Link>}{role==='compliance_admin'&&canViewCompliance(role)&&<Link href="/compliance">Compliance</Link>}{canViewHr(role)&&<Link href="/admin">HR Admin</Link>}{canViewHr(role)&&<Link href="/admin/leave">Staff Leave</Link>}{canArchive&&<Link href="/admin/archive">HR Archive</Link>}{canManageManagers(role)&&<Link href="/admin/managers">Manager Allocation</Link>}{canManageContracts(role)&&<Link href="/contracts/manage">Contracts</Link>}</nav></header>;
 }
