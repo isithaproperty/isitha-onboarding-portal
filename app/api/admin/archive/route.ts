@@ -15,7 +15,7 @@ export async function GET() {
     const admin = createSupabaseAdminClient();
     const [staffResult, onboardingResult, contractsResult] = await Promise.all([
       admin.from('employees').select('id,first_name,last_name,email').order('first_name'),
-      admin.from('employee_hr_onboarding').select('employee_id,status,submitted_at,archived_at'),
+      admin.from('employee_hr_onboarding').select('employee_id,status,submitted_at,archived_at,archive_pending_at'),
       admin.from('employee_contracts').select('employee_id,status,archived_at'),
     ]);
     const error = staffResult.error || onboardingResult.error || contractsResult.error;
@@ -33,6 +33,7 @@ export async function GET() {
         status: onboarding?.status || 'not_started',
         submitted_at: onboarding?.submitted_at || null,
         archived_at: onboarding?.archived_at || null,
+        archive_pending_at: onboarding?.archive_pending_at || null,
         signed_contracts: employeeContracts.filter(contract => contract.status === 'signed' && !contract.archived_at).length,
         awaiting_contracts: employeeContracts.filter(contract => contract.status !== 'signed' && !contract.archived_at).length,
       };
@@ -63,8 +64,9 @@ export async function POST(request: Request) {
     if (onboardingError) throw onboardingError;
     if (!onboarding) return NextResponse.json({ error: 'No onboarding record was found for this employee.' }, { status: 404 });
 
-    const onboardingAlreadyArchived = Boolean(onboarding.archived_at) || String(onboarding.status || '').toLowerCase() === 'archived';
-    if (!onboardingAlreadyArchived && String(onboarding.status || '').toLowerCase() !== 'submitted') {
+    const currentStatus = String(onboarding.status || '').toLowerCase();
+    const onboardingAlreadyArchived = Boolean(onboarding.archived_at) || currentStatus === 'archived';
+    if (!onboardingAlreadyArchived && currentStatus !== 'submitted') {
       return NextResponse.json({ error: 'Only submitted onboarding records can be archived.' }, { status: 409 });
     }
 
@@ -77,6 +79,16 @@ export async function POST(request: Request) {
     }
     if (onboardingAlreadyArchived && activeContracts.length === 0) {
       return NextResponse.json({ error: 'There is no new private portal data to archive for this employee.' }, { status: 409 });
+    }
+
+    if (!onboardingAlreadyArchived && !onboarding.archive_pending_at) {
+      const pendingAt = new Date().toISOString();
+      const { error: pendingError } = await admin.from('employee_hr_onboarding').update({
+        archive_pending_at: pendingAt,
+        archived_by: user.id,
+        updated_at: pendingAt,
+      }).eq('employee_id', employeeId).eq('status', 'submitted');
+      if (pendingError) throw pendingError;
     }
 
     if (!onboardingAlreadyArchived && onboarding.id_document_path) {
@@ -113,9 +125,10 @@ export async function POST(request: Request) {
         bank_branch_code: null,
         status: 'archived',
         archived_at: archivedAt,
+        archive_pending_at: null,
         archived_by: user.id,
         updated_at: archivedAt,
-      }).eq('employee_id', employeeId);
+      }).eq('employee_id', employeeId).eq('status', 'submitted');
       if (updateOnboardingError) throw updateOnboardingError;
     }
 
@@ -134,6 +147,6 @@ export async function POST(request: Request) {
       archivedAt,
     });
   } catch (error) {
-    return NextResponse.json({ error: safeApiError(error, 'The employee record could not be archived.') }, { status: 500 });
+    return NextResponse.json({ error: safeApiError(error, 'The archive could not be completed. HR can safely retry the archive action.') }, { status: 500 });
   }
 }
