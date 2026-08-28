@@ -10,10 +10,10 @@ async function ownContract(contractId:string){
   if(!employee)return {response:NextResponse.json({error:'Your employee profile is not linked. Please contact HR.'},{status:409})};
   const admin=createSupabaseAdminClient();
   const {data:contract,error}=await admin.from('employee_contracts')
-    .select('id,employee_id,file_path,original_filename,status,opened_at')
-    .eq('id',contractId).eq('employee_id',employee.id).maybeSingle();
+    .select('id,employee_id,file_path,original_filename,status,opened_at,archived_at')
+    .eq('id',contractId).eq('employee_id',employee.id).is('archived_at',null).maybeSingle();
   if(error)throw error;
-  if(!contract)return {response:NextResponse.json({error:'Contract not found.'},{status:404})};
+  if(!contract)return {response:NextResponse.json({error:'This contract file is no longer held in the portal.'},{status:404})};
   return {admin,contract,user};
 }
 
@@ -22,7 +22,7 @@ export async function GET(_request:Request,context:{params:Promise<{contractId:s
     const {contractId}=await context.params;const access=await ownContract(contractId);
     if('response'in access)return access.response;
     const openedAt=new Date().toISOString();
-    const {error:updateError}=await access.admin.from('employee_contracts').update({opened_at:openedAt}).eq('id',contractId).is('opened_at',null);
+    const {error:updateError}=await access.admin.from('employee_contracts').update({opened_at:openedAt}).eq('id',contractId).is('opened_at',null).is('archived_at',null);
     if(updateError)throw updateError;
     const {data,error}=await access.admin.storage.from('employee-contracts').createSignedUrl(access.contract.file_path,300);
     if(error||!data?.signedUrl)throw error||new Error('Signed URL missing');
@@ -44,7 +44,7 @@ export async function PATCH(request:Request,context:{params:Promise<{contractId:
       status:'signed',signed_at:signedAt,signed_by:access.user.id,signer_name:signerName,
       signed_file_path:access.contract.file_path,
       signing_declaration:'I confirm that I opened, read and agree to this contract.',
-    }).eq('id',contractId).eq('employee_id',access.contract.employee_id).eq('status','awaiting_signature').select('id,status,signed_at,signer_name').maybeSingle();
+    }).eq('id',contractId).eq('employee_id',access.contract.employee_id).eq('status','awaiting_signature').is('archived_at',null).select('id,status,signed_at,signer_name').maybeSingle();
     if(error)throw error;
     if(!data)return NextResponse.json({error:'This contract was already updated.'},{status:409});
     return NextResponse.json({contract:data,message:'Contract signed successfully.'});
