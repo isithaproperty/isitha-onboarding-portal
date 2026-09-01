@@ -41,10 +41,12 @@ export default function TrainingPage() {
   async function acknowledgeTraining() {
     setSaving(true); setMessage('');
     try {
+      const currentModule = trainingModules.find((item) => item.slug === slug);
+      if (!currentModule) { setMessage('This training module could not be found.'); return; }
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) { setMessage('Please sign in before acknowledging this training.'); return; }
       const role=normaliseRole(user.app_metadata?.role);
-      if(module.roles && !module.roles.includes(role)){setMessage('This training is not assigned to your role.');return}
+      if(currentModule.roles && !currentModule.roles.includes(role)){setMessage('This training is not assigned to your role.');return}
       const { data: employee, error: employeeError } = await supabase.from('employees').select('id').eq('auth_user_id', user.id).single();
       if (employeeError || !employee) { setMessage('Your employee profile could not be found.'); return; }
       const { data: course, error: courseError } = await supabase.from('training_courses').select('id, version').eq('slug', slug).single();
