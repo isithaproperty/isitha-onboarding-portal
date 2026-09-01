@@ -107,6 +107,7 @@ export default function AdminPage() {
   const [expandedEmployee, setExpandedEmployee] = useState<string | null>(null);
   const [editingEmployee, setEditingEmployee] = useState<string | null>(null);
   const [savingEmployee, setSavingEmployee] = useState(false);
+  const [deletingEmployee, setDeletingEmployee] = useState<string | null>(null);
   const [savingStaff, setSavingStaff] = useState(false);
   const [staffMessage, setStaffMessage] = useState("");
   const [staffError, setStaffError] = useState("");
@@ -174,6 +175,39 @@ export default function AdminPage() {
     setSavingEmployee(true);
     setEmployeeMessage("");
     const fd = new FormData(event.currentTarget);
+    const status = String(fd.get("status") || "").toLowerCase();
+    if (status === "leaver") {
+      const name = `${employee.legal_first_name || ""} ${employee.legal_last_name || ""}`.trim() || "this employee";
+      const confirmed = window.confirm(
+        `Remove ${name} from the system? This permanently deletes their portal login, employee record, HR documents, contracts, training and leave records. This cannot be undone.`,
+      );
+      if (!confirmed) {
+        setSavingEmployee(false);
+        return;
+      }
+      setDeletingEmployee(employee.employee_id);
+      try {
+        const response = await fetch(`/api/admin/employees/${employee.employee_id}`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ confirmation: "DELETE" }),
+        });
+        const result = await response.json();
+        if (!response.ok) setEmployeeMessage(result.error || "Unable to remove employee.");
+        else {
+          setEmployeeMessage(result.message || "Employee removed from the system.");
+          setEditingEmployee(null);
+          setExpandedEmployee(null);
+          await loadAdminData();
+        }
+      } catch {
+        setEmployeeMessage("Unable to remove employee.");
+      } finally {
+        setDeletingEmployee(null);
+        setSavingEmployee(false);
+      }
+      return;
+    }
     try {
       const response = await fetch(`/api/admin/employees/${employee.employee_id}`, {
         method: "PATCH",
@@ -183,7 +217,7 @@ export default function AdminPage() {
           lastName: fd.get("lastName"),
           email: fd.get("email"),
           mobile: fd.get("mobile"),
-          status: fd.get("status"),
+          status,
           role: fd.get("role"),
           annualLeaveEntitlement: fd.get("annualLeaveEntitlement"),
         }),
@@ -351,7 +385,7 @@ export default function AdminPage() {
                                   <label>Employment status<select name="status" defaultValue={(employee.status || "submitted").toLowerCase()}><option value="submitted">Submitted</option><option value="active">Active</option><option value="inactive">Inactive</option><option value="leaver">Leaver</option></select></label>
                                   <label>Portal role<select name="role" defaultValue={(employee.role || "staff").toLowerCase()}>{Array.from(new Set([employee.role||"staff",...assignablePortalRoles])).map(role=><option key={role} value={role}>{roleLabel(role)}</option>)}</select></label>
                                   <label>Annual leave entitlement (days)<input name="annualLeaveEntitlement" type="number" min="0" max="365" step="0.5" defaultValue={employee.annual_leave_entitlement ?? 20} required /></label>
-                                  <div className="admin-form-actions"><button className="button" disabled={savingEmployee}>{savingEmployee ? "Saving..." : "Save employee"}</button></div>
+                                  <div className="admin-form-actions"><button className="button" disabled={savingEmployee}>{deletingEmployee === employee.employee_id ? "Removing employee..." : savingEmployee ? "Saving..." : "Save employee"}</button></div>
                                 </form>
                               </td>
                             </tr>
