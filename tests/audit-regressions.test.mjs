@@ -54,11 +54,16 @@ test("database migration removes overlapping leave policies", async () => {
 test("password recovery returns users to the set-password page", async () => {
   const login = await read("app/login/page.tsx");
   const setPassword = await read("app/set-password/page.tsx");
+  const browserClient = await read("lib/supabase.ts");
   assert.match(login, /resetPasswordForEmail/);
   assert.match(login, /window\.location\.origin}\/set-password/);
   assert.match(login, /Forgot password/);
+  assert.match(browserClient, /flowType: 'implicit'/);
+  assert.match(setPassword, /verifyOtp/);
+  assert.match(setPassword, /error_description/);
   assert.match(setPassword, /exchangeCodeForSession/);
   assert.match(setPassword, /updateUser\(\{ password \}\)/);
+  assert.ok(setPassword.indexOf("getSession()") < setPassword.indexOf("exchangeCodeForSession"));
 });
 
 test("manager assignments consistently use Auth user IDs", async () => {
