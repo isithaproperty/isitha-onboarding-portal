@@ -88,3 +88,12 @@ test("marking an employee as a leaver uses the protected removal endpoint", asyn
   assert.match(route, /admin\.auth\.admin\.deleteUser/);
   assert.match(route, /from\('employees'\)\.delete\(\)/);
 });
+
+test("staff without onboarding can be seen and deleted by HR", async () => {
+  const compliance = await read("app/api/admin/compliance/route.ts");
+  const page = await read("app/admin/page.tsx");
+  assert.match(compliance, /status: 'not_started'/);
+  assert.match(compliance, /staffResult\.data/);
+  assert.match(page, /Delete employee/);
+  assert.match(page, /handleEmployeeDelete/);
+});

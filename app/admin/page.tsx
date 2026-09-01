@@ -177,35 +177,8 @@ export default function AdminPage() {
     const fd = new FormData(event.currentTarget);
     const status = String(fd.get("status") || "").toLowerCase();
     if (status === "leaver") {
-      const name = `${employee.legal_first_name || ""} ${employee.legal_last_name || ""}`.trim() || "this employee";
-      const confirmed = window.confirm(
-        `Remove ${name} from the system? This permanently deletes their portal login, employee record, HR documents, contracts, training and leave records. This cannot be undone.`,
-      );
-      if (!confirmed) {
-        setSavingEmployee(false);
-        return;
-      }
-      setDeletingEmployee(employee.employee_id);
-      try {
-        const response = await fetch(`/api/admin/employees/${employee.employee_id}`, {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ confirmation: "DELETE" }),
-        });
-        const result = await response.json();
-        if (!response.ok) setEmployeeMessage(result.error || "Unable to remove employee.");
-        else {
-          setEmployeeMessage(result.message || "Employee removed from the system.");
-          setEditingEmployee(null);
-          setExpandedEmployee(null);
-          await loadAdminData();
-        }
-      } catch {
-        setEmployeeMessage("Unable to remove employee.");
-      } finally {
-        setDeletingEmployee(null);
-        setSavingEmployee(false);
-      }
+      await handleEmployeeDelete(employee);
+      setSavingEmployee(false);
       return;
     }
     try {
@@ -233,6 +206,36 @@ export default function AdminPage() {
       setEmployeeMessage("Unable to update employee.");
     } finally {
       setSavingEmployee(false);
+    }
+  }
+
+  async function handleEmployeeDelete(employee: Employee) {
+    if (!employee.employee_id) return;
+    const name = `${employee.legal_first_name || ""} ${employee.legal_last_name || ""}`.trim() || "this employee";
+    const confirmed = window.confirm(
+      `Remove ${name} from the system? This permanently deletes their portal login, employee record, HR documents, contracts, training and leave records. This cannot be undone.`,
+    );
+    if (!confirmed) return;
+    setDeletingEmployee(employee.employee_id);
+    setEmployeeMessage("");
+    try {
+      const response = await fetch(`/api/admin/employees/${employee.employee_id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmation: "DELETE" }),
+      });
+      const result = await response.json();
+      if (!response.ok) setEmployeeMessage(result.error || "Unable to remove employee.");
+      else {
+        setEmployeeMessage(result.message || "Employee removed from the system.");
+        setEditingEmployee(null);
+        setExpandedEmployee(null);
+        await loadAdminData();
+      }
+    } catch {
+      setEmployeeMessage("Unable to remove employee.");
+    } finally {
+      setDeletingEmployee(null);
     }
   }
 
@@ -312,7 +315,7 @@ export default function AdminPage() {
       {!adminError && (
         <>
           <div className="grid">
-            <div className="card"><div className="muted">Onboarding records</div><div className="metric">{realEmployees.length}</div></div>
+            <div className="card"><div className="muted">Onboarding records</div><div className="metric">{realEmployees.filter((e) => (e.status || "").toLowerCase() !== "not_started").length}</div></div>
             <div className="card"><div className="muted">Declarations accepted</div><div className="metric">{realEmployees.filter((e) => e.declaration_accepted).length}</div></div>
             <div className="card"><div className="muted">Active / submitted staff</div><div className="metric">{realEmployees.filter((e) => !["inactive", "leaver"].includes((e.status || "").toLowerCase())).length}</div></div>
           </div>
@@ -369,8 +372,8 @@ export default function AdminPage() {
                             <td><strong>{employee.status || "Not submitted"}</strong></td>
                             <td><strong>{roleLabel(employee.role)}</strong></td>
                             <td>
-                              <button className="button" type="button" onClick={() => setExpandedEmployee(expanded ? null : employee.id)}>{expanded ? "Hide" : "View HR record"}</button>{" "}
-                              <button className="button secondary" type="button" onClick={() => setEditingEmployee(editing ? null : employee.id)}>{editing ? "Cancel" : "Edit"}</button>
+                              {(employee.status || "").toLowerCase() !== "not_started" && <><button className="button" type="button" onClick={() => setExpandedEmployee(expanded ? null : employee.id)}>{expanded ? "Hide" : "View HR record"}</button>{" "}<button className="button secondary" type="button" onClick={() => setEditingEmployee(editing ? null : employee.id)}>{editing ? "Cancel" : "Edit"}</button>{" "}</>}
+                              <button className="button secondary" type="button" disabled={deletingEmployee === employee.employee_id} onClick={() => handleEmployeeDelete(employee)}>{deletingEmployee === employee.employee_id ? "Deleting..." : "Delete employee"}</button>
                             </td>
                           </tr>
 
