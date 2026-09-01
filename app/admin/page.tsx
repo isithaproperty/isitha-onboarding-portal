@@ -383,8 +383,8 @@ export default function AdminPage() {
                                 <form className="admin-form" onSubmit={(e) => handleEmployeeUpdate(e, employee)}>
                                   <label>First name<input name="firstName" defaultValue={employee.legal_first_name || ""} required /></label>
                                   <label>Last name<input name="lastName" defaultValue={employee.legal_last_name || ""} required /></label>
-                                  <label>Email<input name="email" type="email" defaultValue={employee.personal_email || ""} /></label>
-                                  <label>Mobile<input name="mobile" defaultValue={employee.mobile_number || ""} /></label>
+                                  <label>Email<input name="email" type="email" defaultValue={employee.personal_email || ""} required /></label>
+                                  <label>Mobile<input name="mobile" type="tel" defaultValue={employee.mobile_number || ""} required /></label>
                                   <label>Employment status<select name="status" defaultValue={(employee.status || "submitted").toLowerCase()}><option value="submitted">Submitted</option><option value="active">Active</option><option value="inactive">Inactive</option><option value="leaver">Leaver</option></select></label>
                                   <label>Portal role<select name="role" defaultValue={(employee.role || "staff").toLowerCase()}>{Array.from(new Set([employee.role||"staff",...assignablePortalRoles])).map(role=><option key={role} value={role}>{roleLabel(role)}</option>)}</select></label>
                                   <label>Annual leave entitlement (days)<input name="annualLeaveEntitlement" type="number" min="0" max="365" step="0.5" defaultValue={employee.annual_leave_entitlement ?? 20} required /></label>
