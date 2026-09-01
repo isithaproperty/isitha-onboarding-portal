@@ -76,3 +76,15 @@ test("manager assignments consistently use Auth user IDs", async () => {
   assert.match(team, /\.eq\('manager_id', user\.id\)/);
   assert.match(decision, /\.eq\('manager_id', user\.id\)/);
 });
+
+test("marking an employee as a leaver uses the protected removal endpoint", async () => {
+  const page = await read("app/admin/page.tsx");
+  const route = await read("app/api/admin/employees/[employeeId]/route.ts");
+  assert.match(page, /status === "leaver"/);
+  assert.match(page, /method: "DELETE"/);
+  assert.match(page, /This cannot be undone/);
+  assert.match(route, /export async function DELETE/);
+  assert.match(route, /You cannot remove your own portal account/);
+  assert.match(route, /admin\.auth\.admin\.deleteUser/);
+  assert.match(route, /from\('employees'\)\.delete\(\)/);
+});
