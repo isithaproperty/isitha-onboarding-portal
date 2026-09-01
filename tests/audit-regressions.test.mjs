@@ -1,50 +1,59 @@
-import test from 'node:test';
-import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 
-const read = path => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
+const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-test('leave decisions use the protected server endpoint', async () => {
-  const page = await read('app/leave/team/page.tsx');
-  const route = await read('app/api/leave/team/[requestId]/route.ts');
+test("leave decisions use the protected server endpoint", async () => {
+  const page = await read("app/leave/team/page.tsx");
+  const route = await read("app/api/leave/team/[requestId]/route.ts");
   assert.match(page, /fetch\(`\/api\/leave\/team\/\$\{decision\.id\}`/);
   assert.doesNotMatch(page, /\.from\(['"]leave_requests['"]\)\.update/);
   assert.match(route, /You cannot review your own leave request/);
   assert.match(route, /\.eq\('status', 'pending'\)/);
 });
 
-test('assessment scores are calculated on the server', async () => {
-  const page = await read('app/quiz/page.tsx');
-  const route = await read('app/api/training/ohsa-assessment/route.ts');
+test("assessment scores are calculated on the server", async () => {
+  const page = await read("app/quiz/page.tsx");
+  const route = await read("app/api/training/ohsa-assessment/route.ts");
   assert.match(page, /\/api\/training\/ohsa-assessment/);
   assert.doesNotMatch(page, /from\(['"]quiz_attempts['"]\)/);
   assert.match(route, /answer === quiz\[index\]\.answer/);
   assert.match(route, /training_acknowledgements/);
 });
 
-test('new staff records are linked through auth_user_id', async () => {
-  const route = await read('app/api/admin/staff/route.ts');
+test("new staff records are linked through auth_user_id", async () => {
+  const route = await read("app/api/admin/staff/route.ts");
   assert.match(route, /auth_user_id: invited\.user\.id/);
   assert.match(route, /assignableRoles\(requestingRole\)/);
   assert.doesNotMatch(route, /\.insert\(\{\s*id:\s*invited\.user\.id/);
 });
 
-test('contracts must be opened before server-side signing', async () => {
-  const route = await read('app/api/contracts/[contractId]/route.ts');
+test("contracts must be opened before server-side signing", async () => {
+  const route = await read("app/api/contracts/[contractId]/route.ts");
   assert.match(route, /Open and review the contract before signing it/);
   assert.match(route, /signed_file_path:access\.contract\.file_path/);
 });
 
-test('database migration removes overlapping leave policies', async () => {
-  const migration = await read('supabase/migrations/202608260001_audit_remediation.sql');
+test("contract uploads use canonical content types for mobile files", async () => {
+  const route = await read("app/api/admin/contracts/route.ts");
+  assert.match(route, /CONTRACT_CONTENT_TYPES/);
+  assert.match(route, /contentType,/);
+  assert.doesNotMatch(route, /ALLOWED_CONTRACT_MIME_TYPES\.has\(file\.type\)/);
+});
+
+test("database migration removes overlapping leave policies", async () => {
+  const migration = await read(
+    "supabase/migrations/202608260001_audit_remediation.sql",
+  );
   assert.match(migration, /tablename='leave_requests'/);
   assert.match(migration, /leave_update_authorised_not_self/);
   assert.match(migration, /revoke all on public\.leave_requests from anon/);
 });
 
-test('password recovery returns users to the set-password page', async () => {
-  const login = await read('app/login/page.tsx');
-  const setPassword = await read('app/set-password/page.tsx');
+test("password recovery returns users to the set-password page", async () => {
+  const login = await read("app/login/page.tsx");
+  const setPassword = await read("app/set-password/page.tsx");
   assert.match(login, /resetPasswordForEmail/);
   assert.match(login, /window\.location\.origin}\/set-password/);
   assert.match(login, /Forgot password/);
@@ -52,13 +61,18 @@ test('password recovery returns users to the set-password page', async () => {
   assert.match(setPassword, /updateUser\(\{ password \}\)/);
 });
 
-test('manager assignments consistently use Auth user IDs', async () => {
-  const migration = await read('supabase/migrations/202608270001_repair_manager_links.sql');
-  const assignments = await read('app/api/admin/manager-assignments/route.ts');
-  const team = await read('app/api/leave/team/route.ts');
-  const decision = await read('app/api/leave/team/[requestId]/route.ts');
+test("manager assignments consistently use Auth user IDs", async () => {
+  const migration = await read(
+    "supabase/migrations/202608270001_repair_manager_links.sql",
+  );
+  const assignments = await read("app/api/admin/manager-assignments/route.ts");
+  const team = await read("app/api/leave/team/route.ts");
+  const decision = await read("app/api/leave/team/[requestId]/route.ts");
   assert.match(migration, /e\.manager_id=\(select auth\.uid\(\)\)/);
-  assert.match(assignments, /storedManagerAuthUserId = managerRecord\.auth_user_id/);
+  assert.match(
+    assignments,
+    /storedManagerAuthUserId = managerRecord\.auth_user_id/,
+  );
   assert.match(team, /\.eq\('manager_id', user\.id\)/);
   assert.match(decision, /\.eq\('manager_id', user\.id\)/);
 });
