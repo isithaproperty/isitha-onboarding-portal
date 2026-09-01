@@ -7,6 +7,68 @@ const ALLOWED_ROLES = new Set(['staff', 'manager', 'hr_admin', 'compliance_admin
 
 function clean(value: unknown) { return typeof value === 'string' ? value.trim() : ''; }
 
+export async function DELETE(request: Request, context: { params: Promise<{ employeeId: string }> }) {
+  try {
+    const user = await getAuthenticatedUser();
+    if (!user) return NextResponse.json({ error: 'Please sign in again.' }, { status: 401 });
+    if (!canManageManagers(roleForUser(user))) return NextResponse.json({ error: 'Only HR or Admin can remove employees.' }, { status: 403 });
+
+    const body = await request.json().catch(() => ({})) as { confirmation?: unknown };
+    if (clean(body.confirmation).toUpperCase() !== 'DELETE') {
+      return NextResponse.json({ error: 'Employee removal was not confirmed.' }, { status: 400 });
+    }
+
+    const { employeeId } = await context.params;
+    const admin = createSupabaseAdminClient();
+    const { data: employee, error: employeeError } = await admin
+      .from('employees')
+      .select('id,auth_user_id,first_name,last_name')
+      .eq('id', employeeId)
+      .maybeSingle();
+    if (employeeError) throw employeeError;
+    if (!employee) return NextResponse.json({ error: 'Employee was not found.' }, { status: 404 });
+    if (employee.auth_user_id === user.id) {
+      return NextResponse.json({ error: 'You cannot remove your own portal account.' }, { status: 409 });
+    }
+
+    const [onboardingResult, contractsResult, leaveResult] = await Promise.all([
+      admin.from('employee_hr_onboarding').select('id_document_path').eq('employee_id', employeeId).maybeSingle(),
+      admin.from('employee_contracts').select('file_path,signed_file_path').eq('employee_id', employeeId),
+      admin.from('leave_requests').select('medical_certificate_path').eq('employee_id', employeeId),
+    ]);
+    const lookupError = onboardingResult.error || contractsResult.error || leaveResult.error;
+    if (lookupError) throw lookupError;
+
+    const removals: PromiseLike<{ error: Error | null }>[] = [];
+    if (onboardingResult.data?.id_document_path) {
+      removals.push(admin.storage.from('employee-hr-documents').remove([onboardingResult.data.id_document_path]));
+    }
+    const contractPaths = Array.from(new Set((contractsResult.data || []).flatMap(contract =>
+      [contract.file_path, contract.signed_file_path].filter(Boolean) as string[]
+    )));
+    if (contractPaths.length) removals.push(admin.storage.from('employee-contracts').remove(contractPaths));
+    const medicalPaths = Array.from(new Set((leaveResult.data || []).map(row => row.medical_certificate_path).filter(Boolean) as string[]));
+    if (medicalPaths.length) removals.push(admin.storage.from('medical-certificates').remove(medicalPaths));
+
+    const storageResults = await Promise.all(removals);
+    const storageError = storageResults.find(result => result.error)?.error;
+    if (storageError) throw storageError;
+
+    const { error: deleteEmployeeError } = await admin.from('employees').delete().eq('id', employeeId);
+    if (deleteEmployeeError) throw deleteEmployeeError;
+
+    if (employee.auth_user_id) {
+      const { error: deleteUserError } = await admin.auth.admin.deleteUser(employee.auth_user_id);
+      if (deleteUserError) throw deleteUserError;
+    }
+
+    const name = `${employee.first_name || ''} ${employee.last_name || ''}`.trim() || 'Employee';
+    return NextResponse.json({ message: `${name} was removed from the portal and can no longer sign in.` });
+  } catch (error) {
+    return NextResponse.json({ error: safeApiError(error, 'Unable to remove employee from the system.') }, { status: 500 });
+  }
+}
+
 export async function PATCH(request: Request, context: { params: Promise<{ employeeId: string }> }) {
   try {
     const user = await getAuthenticatedUser();
