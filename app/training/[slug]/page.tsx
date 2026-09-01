@@ -34,13 +34,14 @@ export default function TrainingPage() {
       if (acknowledgementError && acknowledgementError.code !== '23505') { setMessage('Unable to save the acknowledgement. Please try again.'); return; }
       setAcknowledged(true);
 
-      const requiresAssessment = slug === 'ohsa-awareness' || slug === 'popia-data-protection';
+      const requiresAssessment = ['ohsa-awareness','popia-data-protection','cybersecurity-information-security','workplace-conduct-harassment'].includes(slug);
       if (!requiresAssessment) {
         const { error: progressError } = await supabase.from('training_progress').upsert({ employee_id: employee.id, course_id: course.id, status: 'completed', progress_percent: 100, completed_at: new Date().toISOString(), updated_at: new Date().toISOString() }, { onConflict: 'employee_id,course_id' });
         if (progressError) { setMessage('Acknowledgement saved, but progress could not be updated.'); return; }
       }
 
-      setMessage(slug === 'ohsa-awareness' ? '✓ Training acknowledged. You must still pass the OHSA assessment.' : slug === 'popia-data-protection' ? '✓ Training acknowledged. You must now pass the POPIA assessment with at least 80%.' : '✓ Training successfully acknowledged and completed.');
+      if (requiresAssessment) setMessage('✓ Training acknowledged. You must now pass the assessment with at least 80%.');
+      else setMessage('✓ Training successfully acknowledged and completed.');
     } finally { setSaving(false); }
   }
 
@@ -55,6 +56,7 @@ export default function TrainingPage() {
       <section className="section">
         {slug === 'ohsa-awareness' && acknowledged && <div style={{ marginBottom: 16 }}><Link href="/quiz" className="button">Take OHSA Assessment</Link></div>}
         {slug === 'popia-data-protection' && acknowledged && <div style={{ marginBottom: 16 }}><Link href="/popia-quiz" className="button">Take POPIA Assessment</Link></div>}
+        {(slug === 'cybersecurity-information-security' || slug === 'workplace-conduct-harassment') && acknowledged && <div style={{ marginBottom: 16 }}><Link href={`/training/${slug}/assessment`} className="button">Take Assessment</Link></div>}
         <Link href="/">← Back to My Portal</Link>
       </section>
     </main>
