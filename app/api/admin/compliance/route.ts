@@ -26,12 +26,27 @@ export async function GET() {
     if (error) throw error;
 
     const authById = new Map((usersResult.data.users || []).map((authUser) => [authUser.id, authUser]));
-    const staffByEmployee = new Map((staffResult.data || []).map((employee) => [employee.id, employee]));
+    const onboardingByEmployee = new Map((employeesResult.data || []).map((employee) => [employee.employee_id, employee]));
     const courses = new Map((coursesResult.data || []).map((course) => [course.id, course]));
 
-    const employees = await Promise.all((employeesResult.data || []).map(async (employee) => {
-      const staffRecord = staffByEmployee.get(employee.employee_id);
+    const employees = await Promise.all((staffResult.data || []).map(async (staffRecord) => {
+      const employee = onboardingByEmployee.get(staffRecord.id);
       const authUser = staffRecord?.auth_user_id ? authById.get(staffRecord.auth_user_id) : undefined;
+      if (!employee) {
+        return {
+          id: `staff-${staffRecord.id}`,
+          employee_id: staffRecord.id,
+          legal_first_name: staffRecord.first_name || null,
+          legal_last_name: staffRecord.last_name || null,
+          personal_email: staffRecord.email || null,
+          mobile_number: null,
+          declaration_accepted: false,
+          status: 'not_started',
+          role: clean(authUser?.app_metadata?.role).toLowerCase() || 'staff',
+          annual_leave_entitlement: Number(staffRecord.annual_leave_entitlement ?? 20),
+          id_document_url: null,
+        };
+      }
       const archived = Boolean(employee.archived_at) || String(employee.status || '').toLowerCase() === 'archived';
       let idDocumentUrl: string | null = null;
       if (employee.id_document_path && !archived) {
