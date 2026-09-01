@@ -15,7 +15,9 @@ type Contract = {
   uploaded_at: string;
   signed_at: string | null;
   signer_name: string | null;
+  original_url?: string | null;
   signed_url?: string | null;
+  signed_download_url?: string | null;
 };
 export default function ManageContracts() {
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -72,7 +74,7 @@ export default function ManageContracts() {
       if (!response.ok) {
         setMsg(
           response.status === 413
-            ? "The contract is too large for the upload service. Please use a file smaller than 4 MB."
+            ? "The contract is too large for the upload service. Please use a file smaller than 10 MB."
             : data.error || `Unable to upload contract (${response.status}).`,
         );
         return;
@@ -86,14 +88,22 @@ export default function ManageContracts() {
       setSaving(false);
     }
   }
-  function open(c: Contract) {
-    if (!c.signed_url) {
-      setMsg(
-        "Unable to create a secure link for this contract. Please refresh and try again.",
-      );
+  function openUrl(url: string | null | undefined, message: string) {
+    if (!url) {
+      setMsg(message);
       return;
     }
-    window.open(c.signed_url, "_blank");
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+  function downloadUrl(url: string | null | undefined) {
+    if (!url) {
+      setMsg("Unable to create a secure download link. Please refresh and try again.");
+      return;
+    }
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.rel = "noopener";
+    anchor.click();
   }
   const employeeName = (id: string) => {
     const e = employees.find((x) => x.id === id);
@@ -156,8 +166,8 @@ export default function ManageContracts() {
                 required
               />
               <span className="muted">
-                PDF, DOC or DOCX. For reliable mobile uploads, keep the file
-                below 4 MB.
+                PDF, DOC or DOCX, up to 10 MB. PDF is recommended because the
+                employee signature page can be appended directly to the contract.
               </span>
             </label>
             <div className="admin-form-actions">
@@ -197,9 +207,37 @@ export default function ManageContracts() {
                     {new Date(c.signed_at).toLocaleString()} by {c.signer_name}
                   </p>
                 )}
-                <button className="button" onClick={() => open(c)}>
-                  Open contract
-                </button>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button
+                    className="button secondary"
+                    onClick={() =>
+                      openUrl(
+                        c.original_url,
+                        "Unable to create a secure link for the original contract. Please refresh and try again.",
+                      )
+                    }
+                  >
+                    Open original
+                  </button>
+                  {c.status === "signed" && c.signed_url && (
+                    <button
+                      className="button"
+                      onClick={() =>
+                        openUrl(c.signed_url, "The signed PDF is not available.")
+                      }
+                    >
+                      Open signed PDF
+                    </button>
+                  )}
+                  {c.status === "signed" && c.signed_download_url && (
+                    <button
+                      className="button secondary"
+                      onClick={() => downloadUrl(c.signed_download_url)}
+                    >
+                      Download signed PDF
+                    </button>
+                  )}
+                </div>
               </div>
             ))
           )}

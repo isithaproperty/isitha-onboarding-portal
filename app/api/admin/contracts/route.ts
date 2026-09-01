@@ -56,10 +56,34 @@ export async function GET() {
 
     const contracts = await Promise.all(
       (contractResult.data || []).map(async (contract) => {
-        const { data } = await admin.storage
+        const original = await admin.storage
           .from("employee-contracts")
           .createSignedUrl(contract.file_path, 300);
-        return { ...contract, signed_url: data?.signedUrl || null };
+        let signedUrl: string | null = null;
+        let signedDownloadUrl: string | null = null;
+        if (contract.signed_file_path) {
+          const stem = (contract.original_filename || "contract")
+            .replace(/\.[^.]+$/, "")
+            .replace(/[^a-zA-Z0-9._-]/g, "_");
+          const [signed, download] = await Promise.all([
+            admin.storage
+              .from("employee-contracts")
+              .createSignedUrl(contract.signed_file_path, 300),
+            admin.storage
+              .from("employee-contracts")
+              .createSignedUrl(contract.signed_file_path, 300, {
+                download: `${stem}-signed.pdf`,
+              }),
+          ]);
+          signedUrl = signed.data?.signedUrl || null;
+          signedDownloadUrl = download.data?.signedUrl || null;
+        }
+        return {
+          ...contract,
+          original_url: original.data?.signedUrl || null,
+          signed_url: signedUrl,
+          signed_download_url: signedDownloadUrl,
+        };
       }),
     );
 
@@ -145,9 +169,6 @@ export async function POST(request: Request) {
     const { error: uploadError } = await admin.storage
       .from("employee-contracts")
       .upload(path, bytes, {
-        // Mobile browsers often report valid Word/PDF files as an empty MIME type
-        // or application/octet-stream. Storage uses the validated extension's
-        // canonical type so those files are accepted by the private bucket.
         contentType,
         upsert: false,
       });
