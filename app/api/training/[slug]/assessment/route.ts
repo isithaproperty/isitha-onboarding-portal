@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { complianceAssessments } from '@/lib/compliance-assessments';
+import { trainingModules } from '@/lib/training';
+import { normaliseRole } from '@/lib/authz';
 import { createSupabaseAdminClient } from '@/lib/supabase-admin';
 import { resolveEmployeeForUser } from '@/lib/employee-link';
 import { getAuthenticatedUser, safeApiError } from '@/lib/server-auth';
@@ -12,6 +14,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
 
     const user = await getAuthenticatedUser();
     if (!user) return NextResponse.json({ error: 'Please sign in again.' }, { status: 401 });
+    const module = trainingModules.find((item) => item.slug === slug);
+    const role = normaliseRole(user.app_metadata?.role);
+    if (module?.roles && !module.roles.includes(role)) return NextResponse.json({ error: 'This training is not assigned to your role.' }, { status: 403 });
+
     const employee = await resolveEmployeeForUser(user);
     if (!employee) return NextResponse.json({ error: 'Your employee profile is not linked. Please contact HR.' }, { status: 409 });
 
