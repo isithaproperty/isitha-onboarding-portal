@@ -88,3 +88,11 @@ test("marking an employee as a leaver uses the protected removal endpoint", asyn
   assert.match(route, /admin\.auth\.admin\.deleteUser/);
   assert.match(route, /from\('employees'\)\.delete\(\)/);
 });
+
+test("employee edits keep the contract directory name in sync", async () => {
+  const route = await read("app/api/admin/employees/[employeeId]/route.ts");
+  assert.match(route, /directoryUpdates\.first_name/);
+  assert.match(route, /directoryUpdates\.last_name/);
+  assert.match(route, /directoryUpdates\.email/);
+  assert.match(route, /from\('employees'\)/);
+});

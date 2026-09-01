@@ -103,13 +103,16 @@ export async function PATCH(request: Request, context: { params: Promise<{ emplo
     if (error) throw error;
     if (!data) return NextResponse.json({ error: 'Employee onboarding record was not found.' }, { status: 404 });
 
-    if (annualLeaveEntitlement !== undefined) {
-      const { error: leaveError } = await admin
-        .from('employees')
-        .update({ annual_leave_entitlement: annualLeaveEntitlement })
-        .eq('id', employeeId);
-      if (leaveError) throw leaveError;
-    }
+    const directoryUpdates: Record<string, string | number> = { updated_at: new Date().toISOString() };
+    if (body.firstName !== undefined) directoryUpdates.first_name = clean(body.firstName);
+    if (body.lastName !== undefined) directoryUpdates.last_name = clean(body.lastName);
+    if (body.email !== undefined) directoryUpdates.email = clean(body.email).toLowerCase();
+    if (annualLeaveEntitlement !== undefined) directoryUpdates.annual_leave_entitlement = annualLeaveEntitlement;
+    const { error: directoryError } = await admin
+      .from('employees')
+      .update(directoryUpdates)
+      .eq('id', employeeId);
+    if (directoryError) throw directoryError;
 
     if (role) {
       const { data: staffRecord, error: staffLookupError } = await admin
