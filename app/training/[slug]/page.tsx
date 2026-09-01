@@ -5,7 +5,11 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { Header } from '@/components/Header';
 import { trainingModules } from '@/lib/training';
+import { normaliseRole } from '@/lib/authz';
 import { supabase } from '@/lib/supabase';
+
+const assessedTraining = ['ohsa-awareness','popia-data-protection','cybersecurity-information-security','workplace-conduct-harassment','manager-people-management','hr-compliance-employee-relations'];
+const genericAssessmentTraining = ['cybersecurity-information-security','workplace-conduct-harassment','manager-people-management','hr-compliance-employee-relations'];
 
 export default function TrainingPage() {
   const params = useParams<{ slug: string }>();
@@ -14,17 +18,33 @@ export default function TrainingPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [acknowledged, setAcknowledged] = useState(false);
+  const [allowed, setAllowed] = useState<boolean | null>(null);
 
   useEffect(()=>{void loadAcknowledgement()},[slug]);
-  async function loadAcknowledgement(){const{data:{user}}=await supabase.auth.getUser();if(!user)return;const{data:employee}=await supabase.from('employees').select('id').eq('auth_user_id',user.id).maybeSingle();if(!employee)return;const{data:course}=await supabase.from('training_courses').select('id').eq('slug',slug).maybeSingle();if(!course)return;const{data}=await supabase.from('training_acknowledgements').select('id').eq('employee_id',employee.id).eq('course_id',course.id).maybeSingle();setAcknowledged(Boolean(data))}
+  async function loadAcknowledgement(){
+    const{data:{user}}=await supabase.auth.getUser();
+    if(!user){setAllowed(false);return}
+    const role=normaliseRole(user.app_metadata?.role);
+    if(module?.roles && !module.roles.includes(role)){setAllowed(false);return}
+    setAllowed(true);
+    const{data:employee}=await supabase.from('employees').select('id').eq('auth_user_id',user.id).maybeSingle();
+    if(!employee)return;
+    const{data:course}=await supabase.from('training_courses').select('id').eq('slug',slug).maybeSingle();
+    if(!course)return;
+    const{data}=await supabase.from('training_acknowledgements').select('id').eq('employee_id',employee.id).eq('course_id',course.id).maybeSingle();
+    setAcknowledged(Boolean(data));
+  }
 
   if (!module) return <main className="shell"><Header /><section className="hero"><h1>Training module not found</h1><Link href="/">← Back to My Portal</Link></section></main>;
+  if (allowed === false) return <main className="shell"><Header /><section className="hero"><h1>Training not assigned</h1><p className="muted">This module is not assigned to your portal role.</p><Link href="/">← Back to My Portal</Link></section></main>;
 
   async function acknowledgeTraining() {
     setSaving(true); setMessage('');
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) { setMessage('Please sign in before acknowledging this training.'); return; }
+      const role=normaliseRole(user.app_metadata?.role);
+      if(module.roles && !module.roles.includes(role)){setMessage('This training is not assigned to your role.');return}
       const { data: employee, error: employeeError } = await supabase.from('employees').select('id').eq('auth_user_id', user.id).single();
       if (employeeError || !employee) { setMessage('Your employee profile could not be found.'); return; }
       const { data: course, error: courseError } = await supabase.from('training_courses').select('id, version').eq('slug', slug).single();
@@ -34,7 +54,7 @@ export default function TrainingPage() {
       if (acknowledgementError && acknowledgementError.code !== '23505') { setMessage('Unable to save the acknowledgement. Please try again.'); return; }
       setAcknowledged(true);
 
-      const requiresAssessment = ['ohsa-awareness','popia-data-protection','cybersecurity-information-security','workplace-conduct-harassment'].includes(slug);
+      const requiresAssessment = assessedTraining.includes(slug);
       if (!requiresAssessment) {
         const { error: progressError } = await supabase.from('training_progress').upsert({ employee_id: employee.id, course_id: course.id, status: 'completed', progress_percent: 100, completed_at: new Date().toISOString(), updated_at: new Date().toISOString() }, { onConflict: 'employee_id,course_id' });
         if (progressError) { setMessage('Acknowledgement saved, but progress could not be updated.'); return; }
@@ -52,11 +72,11 @@ export default function TrainingPage() {
       <section className="section">
         {module.sections.map((section, index) => <div className="card" key={section.title} style={{ marginBottom: 18 }}><div className="muted">Section {index + 1} of {module.sections.length}</div><h2>{section.title}</h2><p style={{ lineHeight: 1.7 }}>{section.body}</p></div>)}
       </section>
-      <section className="section"><div className="card"><h2>Training acknowledgement</h2><p>I confirm that I have read and understood this training module.</p><button className="button" onClick={acknowledgeTraining} disabled={saving} style={{ border: 0, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1 }}>{saving ? 'Saving...' : 'I have read and understood'}</button>{message && <p style={{ marginTop: 16, fontWeight: 600 }}>{message}</p>}</div></section>
+      <section className="section"><div className="card"><h2>Training acknowledgement</h2><p>I confirm that I have read and understood this training module.</p><button className="button" onClick={acknowledgeTraining} disabled={saving || allowed !== true} style={{ border: 0, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1 }}>{saving ? 'Saving...' : 'I have read and understood'}</button>{message && <p style={{ marginTop: 16, fontWeight: 600 }}>{message}</p>}</div></section>
       <section className="section">
         {slug === 'ohsa-awareness' && acknowledged && <div style={{ marginBottom: 16 }}><Link href="/quiz" className="button">Take OHSA Assessment</Link></div>}
         {slug === 'popia-data-protection' && acknowledged && <div style={{ marginBottom: 16 }}><Link href="/popia-quiz" className="button">Take POPIA Assessment</Link></div>}
-        {(slug === 'cybersecurity-information-security' || slug === 'workplace-conduct-harassment') && acknowledged && <div style={{ marginBottom: 16 }}><Link href={`/training/${slug}/assessment`} className="button">Take Assessment</Link></div>}
+        {genericAssessmentTraining.includes(slug) && acknowledged && <div style={{ marginBottom: 16 }}><Link href={`/training/${slug}/assessment`} className="button">Take Assessment</Link></div>}
         <Link href="/">← Back to My Portal</Link>
       </section>
     </main>

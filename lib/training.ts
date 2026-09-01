@@ -1,10 +1,12 @@
 import { popiaTrainingModule } from './popia-training';
+import type { PortalRole } from './authz';
 
 export type TrainingModule = {
   slug: string;
   title: string;
   category: string;
   duration: string;
+  roles?: PortalRole[];
   sections: { title: string; body: string }[];
 };
 
@@ -71,6 +73,36 @@ export const trainingModules: TrainingModule[] = [
       { title: 'Client and remote-working environments', body: 'The same standards apply when employees work remotely or with UK clients. Inappropriate behaviour by client personnel should be reported to Isitha Global rather than being accepted as part of the assignment.' },
       { title: 'Reporting a concern', body: 'Employees should report harassment, discrimination, bullying or retaliation through the available manager or HR channel. Reports should be handled sensitively, promptly and as confidentially as reasonably possible.' },
       { title: 'No retaliation and cooperation', body: 'Victimisation or retaliation against a person who raises a genuine concern or participates in an investigation is unacceptable. Employees must cooperate honestly with reasonable workplace investigations.' },
+    ],
+  },
+  {
+    slug: 'manager-people-management', title: 'Manager People Management & Compliance', category: 'Management', duration: '35 min', roles: ['manager', 'hr_admin', 'admin'],
+    sections: [
+      { title: 'Manager responsibilities and the EOR model', body: 'Managers direct day-to-day work but must remember that Isitha Global is the South African employer. A client decision to remove someone from an assignment does not automatically end the employee’s employment. Escalate material employment decisions to HR.' },
+      { title: 'Fair performance management and probation', body: 'Set clear, job-related expectations, give timely feedback, record concerns and allow a reasonable opportunity to improve where appropriate. Probation should be actively managed and documented rather than used as an automatic route to dismissal.' },
+      { title: 'Leave and attendance management', body: 'Apply leave rules consistently, consider business needs fairly and keep decisions documented. Managers must not approve their own leave or bypass the normal approval route. Attendance concerns should be raised promptly with HR where they may require formal action.' },
+      { title: 'Working hours, overtime and fatigue', body: 'Monitor repeated excessive hours, after-hours demands and fatigue risks, especially on UK-aligned assignments. Do not encourage unrecorded or unsafe working practices; escalate recurring issues to HR.' },
+      { title: 'Discipline and misconduct', body: 'Managers should establish facts, preserve relevant evidence and avoid pre-judging an outcome. Formal warnings, hearings or dismissal processes must follow the applicable fair procedure and should be coordinated with HR.' },
+      { title: 'Grievances, harassment and discrimination', body: 'Take complaints seriously, do not retaliate, avoid promising absolute confidentiality and refer concerns through the appropriate HR process. Managers should not conduct an informal process that could compromise a later investigation.' },
+      { title: 'Employee privacy and POPIA', body: 'Access employee information only where required for the management role. Use approved systems, keep information secure and avoid discussing medical, disciplinary, payroll or other confidential information with people who do not need it.' },
+      { title: 'Health, safety and wellbeing', body: 'Act on reported hazards, incidents, near misses and wellbeing concerns. Managers should support reasonable controls and escalate work-related injuries or safety-sensitive concerns promptly so the correct OHSA or COIDA process can be assessed.' },
+      { title: 'Managing remote and client-assigned staff', body: 'Maintain regular communication, clear objectives and appropriate supervision. Client instructions do not override Isitha Global policies or South African employment obligations, and conflicts should be escalated rather than passed directly to the employee.' },
+      { title: 'Records and when to involve HR', body: 'Keep factual records of performance discussions, attendance concerns, leave decisions, complaints and material management actions. Involve HR early where an issue could lead to formal discipline, termination, a grievance, discrimination allegation, medical issue or legal risk.' },
+    ],
+  },
+  {
+    slug: 'hr-compliance-employee-relations', title: 'HR Compliance & Employee Relations', category: 'HR & Compliance', duration: '40 min', roles: ['hr_admin', 'admin'],
+    sections: [
+      { title: 'HR governance and the EOR employment relationship', body: 'Isitha Global remains the South African employer for employees placed with UK clients. HR must distinguish between client assignment management and the employment relationship and ensure employment decisions are made through the correct South African process.' },
+      { title: 'BCEA records, working time and leave', body: 'Maintain accurate employment, working-time, remuneration and leave records as required by applicable law and company policy. Review unusual overtime, fatigue or leave patterns and resolve discrepancies with payroll and management.' },
+      { title: 'Discipline, incapacity and dismissal', body: 'Formal action must be based on appropriate grounds and a fair process. HR should ensure allegations and evidence are clear, the employee has a fair opportunity to respond, outcomes are documented and specialist advice is obtained for higher-risk cases.' },
+      { title: 'Grievances and employee relations', body: 'Acknowledge grievances promptly, identify conflicts of interest, appoint an appropriate investigator or decision-maker where needed, keep a fair record and communicate outcomes through the established process.' },
+      { title: 'Equality, discrimination and harassment', body: 'Employment practices should be fair and should not amount to unfair discrimination. Harassment complaints require sensitive handling, protection against retaliation and a process consistent with applicable employment-equity requirements and company policy.' },
+      { title: 'POPIA and confidential HR information', body: 'HR handles high-risk personal information. Collect only what is necessary, restrict access, use approved systems, apply appropriate retention controls and manage disclosures or suspected breaches through the organisation’s privacy process.' },
+      { title: 'Recruitment, onboarding and employee records', body: 'Recruitment criteria should be job-related and documented. Verify required identity, payroll, statutory and employment information, ensure contracts and onboarding records are complete and correct inaccurate records promptly.' },
+      { title: 'OHSA, COIDA and workplace incidents', body: 'HR should coordinate with responsible health-and-safety personnel when workplace injuries, hazards or incidents occur and ensure the business assesses any reporting, medical, accommodation or COIDA obligations without unnecessary delay.' },
+      { title: 'Client assignment changes and termination risk', body: 'A client request to replace or remove a worker must be assessed separately from termination of employment. HR should identify redeployment, performance, misconduct, operational-requirement or other relevant issues before any employment outcome is decided.' },
+      { title: 'Audit trail, escalation and legal review', body: 'Maintain a reliable audit trail of material HR decisions and approvals. Escalate unusual, high-risk or legally uncertain matters to senior HR, management or appropriate professional advisers instead of relying on assumptions or informal precedent.' },
     ],
   },
 ];
