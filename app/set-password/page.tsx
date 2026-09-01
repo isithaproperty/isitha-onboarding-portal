@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import type { EmailOtpType, Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 
 export default function SetPasswordPage() {
@@ -18,33 +19,50 @@ export default function SetPasswordPage() {
     async function preparePasswordSession() {
       try {
         const currentUrl = new URL(window.location.href);
-        const code = currentUrl.searchParams.get('code');
+        const linkError = currentUrl.searchParams.get('error_description');
+        if (linkError) throw new Error(decodeURIComponent(linkError.replace(/\+/g, ' ')));
 
-        if (code) {
-          const { error } = await supabase.auth.exchangeCodeForSession(code);
-          if (error) throw error;
-          currentUrl.searchParams.delete('code');
-          window.history.replaceState({}, '', currentUrl.pathname + currentUrl.search);
+        const code = currentUrl.searchParams.get('code');
+        const tokenHash = currentUrl.searchParams.get('token_hash');
+        const type = currentUrl.searchParams.get('type') as EmailOtpType | null;
+
+        let session: Session | null = null;
+        const initialSession = await supabase.auth.getSession();
+        if (initialSession.error) throw initialSession.error;
+        session = initialSession.data.session;
+
+        if (!session && tokenHash && type) {
+          const verified = await supabase.auth.verifyOtp({ token_hash: tokenHash, type });
+          if (verified.error) throw verified.error;
+          session = verified.data.session;
+        }
+
+        // createBrowserClient can exchange a PKCE code during initialisation.
+        // Only exchange it ourselves when that did not already create a session.
+        if (!session && code) {
+          const exchanged = await supabase.auth.exchangeCodeForSession(code);
+          if (exchanged.error) throw exchanged.error;
+          session = exchanged.data.session;
         }
 
         const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
         const accessToken = hash.get('access_token');
         const refreshToken = hash.get('refresh_token');
 
-        if (accessToken && refreshToken) {
-          const { error } = await supabase.auth.setSession({
+        if (!session && accessToken && refreshToken) {
+          const recovered = await supabase.auth.setSession({
             access_token: accessToken,
             refresh_token: refreshToken,
           });
-          if (error) throw error;
-          window.history.replaceState({}, '', currentUrl.pathname + currentUrl.search);
+          if (recovered.error) throw recovered.error;
+          session = recovered.data.session;
         }
 
-        const { data, error } = await supabase.auth.getSession();
-        if (error) throw error;
-        if (!data.session) {
+        if (!session) {
           throw new Error('This password link is invalid or has expired. Return to Sign in and request a new reset email.');
         }
+
+        window.history.replaceState({}, '', currentUrl.pathname);
 
         if (active) {
           setReady(true);
@@ -53,7 +71,8 @@ export default function SetPasswordPage() {
       } catch (error) {
         if (active) {
           setReady(false);
-          setMessage(error instanceof Error ? error.message : 'Unable to open this password link.');
+          const detail = error instanceof Error ? error.message : 'Unable to open this password link.';
+          setMessage(`${detail} Please use only the newest reset email.`);
         }
       }
     }
