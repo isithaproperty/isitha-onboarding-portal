@@ -102,3 +102,13 @@ test("staff without onboarding can be seen and deleted by HR", async () => {
   assert.match(page, /Delete employee/);
   assert.match(page, /handleEmployeeDelete/);
 });
+
+test("employee edits preserve visible contact details", async () => {
+  const page = await read("app/admin/page.tsx");
+  const route = await read("app/api/admin/employees/[employeeId]/route.ts");
+  assert.match(page, /name="email"[^>]*defaultValue=\{employee\.personal_email \|\| ""\} required/);
+  assert.match(page, /name="mobile"[^>]*defaultValue=\{employee\.mobile_number \|\| ""\} required/);
+  assert.match(route, /if \(email\) updates\.personal_email = email/);
+  assert.match(route, /if \(mobile\) updates\.mobile_number = mobile/);
+  assert.match(route, /if \(email\) directoryUpdates\.email = email/);
+});

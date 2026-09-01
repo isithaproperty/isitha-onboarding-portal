@@ -81,6 +81,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ emplo
     const body = await request.json();
     const status = clean(body.status).toLowerCase();
     const role = body.role ? normaliseRole(body.role) : '';
+    const email = clean(body.email).toLowerCase();
+    const mobile = clean(body.mobile);
     if (status && !ALLOWED_STATUSES.has(status)) return NextResponse.json({ error: 'Invalid employment status.' }, { status: 400 });
     if (role && (!ALLOWED_ROLES.has(role) || !assignableRoles(requestingRole).includes(role))) return NextResponse.json({ error: 'You cannot assign that portal role.' }, { status: 403 });
 
@@ -95,21 +97,25 @@ export async function PATCH(request: Request, context: { params: Promise<{ emplo
     const updates: Record<string, string> = { updated_at: new Date().toISOString() };
     if (body.firstName !== undefined) updates.legal_first_name = clean(body.firstName);
     if (body.lastName !== undefined) updates.legal_last_name = clean(body.lastName);
-    if (body.email !== undefined) updates.personal_email = clean(body.email).toLowerCase();
-    if (body.mobile !== undefined) updates.mobile_number = clean(body.mobile);
+    // Editing another field must never erase contact details with an empty value.
+    if (email) updates.personal_email = email;
+    if (mobile) updates.mobile_number = mobile;
     if (status) updates.status = status;
 
     const { data, error } = await admin.from('employee_hr_onboarding').update(updates).eq('employee_id', employeeId).select('id,employee_id,legal_first_name,legal_last_name,personal_email,mobile_number,declaration_accepted,status').maybeSingle();
     if (error) throw error;
     if (!data) return NextResponse.json({ error: 'Employee onboarding record was not found.' }, { status: 404 });
 
-    if (annualLeaveEntitlement !== undefined) {
-      const { error: leaveError } = await admin
-        .from('employees')
-        .update({ annual_leave_entitlement: annualLeaveEntitlement })
-        .eq('id', employeeId);
-      if (leaveError) throw leaveError;
-    }
+    const directoryUpdates: Record<string, string | number> = { updated_at: new Date().toISOString() };
+    if (body.firstName !== undefined) directoryUpdates.first_name = clean(body.firstName);
+    if (body.lastName !== undefined) directoryUpdates.last_name = clean(body.lastName);
+    if (email) directoryUpdates.email = email;
+    if (annualLeaveEntitlement !== undefined) directoryUpdates.annual_leave_entitlement = annualLeaveEntitlement;
+    const { error: directoryError } = await admin
+      .from('employees')
+      .update(directoryUpdates)
+      .eq('id', employeeId);
+    if (directoryError) throw directoryError;
 
     if (role) {
       const { data: staffRecord, error: staffLookupError } = await admin
