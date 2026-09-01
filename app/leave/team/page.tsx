@@ -10,52 +10,12 @@ type Row={id:string;employee_id:string;leave_type:string;start_date:string;end_d
 type Decision={id:string;status:'approved'|'declined';name:string}|null;
 
 export default function TeamLeave(){
-  const router=useRouter();
-  const [rows,setRows]=useState<Row[]>([]);
-  const [allowed,setAllowed]=useState(false);
-  const [loading,setLoading]=useState(true);
-  const [openingCertificate,setOpeningCertificate]=useState<string|null>(null);
-  const [errorMessage,setErrorMessage]=useState('');
-  const [decision,setDecision]=useState<Decision>(null);
-  const [saving,setSaving]=useState(false);
-
+  const router=useRouter(); const [rows,setRows]=useState<Row[]>([]); const [allowed,setAllowed]=useState(false); const [loading,setLoading]=useState(true); const [openingCertificate,setOpeningCertificate]=useState<string|null>(null); const [errorMessage,setErrorMessage]=useState(''); const [decision,setDecision]=useState<Decision>(null); const [saving,setSaving]=useState(false);
   useEffect(()=>{void load()},[]);
-
-  async function load(){
-    const {data:{user}}=await supabase.auth.getUser();
-    if(!user){router.push('/login');return;}
-    const response=await fetch('/api/leave/team',{cache:'no-store'});
-    const result=await response.json();
-    if(response.status===403){setAllowed(false);setLoading(false);return;}
-    if(!response.ok){setErrorMessage(result.error||'Unable to load team leave requests.');setLoading(false);return;}
-    setAllowed(true);setRows((result.requests||[]) as Row[]);setLoading(false);
-  }
-
-  async function saveDecision(event:FormEvent<HTMLFormElement>){
-    event.preventDefault();if(!decision||saving)return;
-    setSaving(true);setErrorMessage('');
-    const comment=String(new FormData(event.currentTarget).get('comment')||'');
-    try{
-      const response=await fetch(`/api/leave/team/${decision.id}`,{
-        method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:decision.status,comment})
-      });
-      const result=await response.json();
-      if(!response.ok){setErrorMessage(result.error||'The leave decision could not be saved.');return;}
-      setDecision(null);await load();
-    }catch{setErrorMessage('The leave decision could not be saved. Please try again.')}finally{setSaving(false)}
-  }
-
-  async function viewCertificate(id:string){
-    setOpeningCertificate(id);setErrorMessage('');
-    try{
-      const response=await fetch(`/api/leave/team/${id}`,{cache:'no-store'});
-      const result=await response.json();
-      if(!response.ok||!result.url){setErrorMessage(result.error||'Unable to open the medical certificate.');return;}
-      window.open(result.url,'_blank','noopener,noreferrer');
-    }catch{setErrorMessage('Unable to open the medical certificate.')}finally{setOpeningCertificate(null)}
-  }
-
+  async function load(){const {data:{user}}=await supabase.auth.getUser();if(!user){router.push('/login');return;}const response=await fetch('/api/leave/team',{cache:'no-store'});const result=await response.json();if(response.status===403){setAllowed(false);setLoading(false);return;}if(!response.ok){setErrorMessage(result.error||'Unable to load team leave requests.');setLoading(false);return;}setAllowed(true);setRows((result.requests||[]) as Row[]);setLoading(false);}
+  async function saveDecision(event:FormEvent<HTMLFormElement>){event.preventDefault();if(!decision||saving)return;setSaving(true);setErrorMessage('');const comment=String(new FormData(event.currentTarget).get('comment')||'');try{const response=await fetch(`/api/leave/team/${decision.id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:decision.status,comment})});const result=await response.json();if(!response.ok){setErrorMessage(result.error||'The leave decision could not be saved.');return;}setDecision(null);await load();}catch{setErrorMessage('The leave decision could not be saved. Please try again.')}finally{setSaving(false)}}
+  async function viewCertificate(id:string){setOpeningCertificate(id);setErrorMessage('');try{const response=await fetch(`/api/leave/team/${id}`,{cache:'no-store'});const result=await response.json();if(!response.ok||!result.url){setErrorMessage(result.error||'Unable to open the medical certificate.');return;}window.open(result.url,'_blank','noopener,noreferrer');}catch{setErrorMessage('Unable to open the medical certificate.')}finally{setOpeningCertificate(null)}}
   if(loading)return <main className="shell"><Header/><section className="hero"><h1>Loading team leave...</h1></section></main>;
   if(!allowed)return <main className="shell"><Header/><section className="hero"><h1>Team Leave</h1><p className="muted">This page is only available to Managers, HR and Admin.</p><Link href="/">← Back to My Portal</Link></section></main>;
-  return <main className="shell"><Header/><section className="hero"><span className="pill">Manager</span><h1>Team Leave Requests</h1><p className="muted">Review requests assigned to you. Isitha HR and Admin retain final company-wide approval authority.</p></section><section className="section">{errorMessage&&<div className="card" role="alert"><p className="warn">{errorMessage}</p></div>}<div className="grid">{rows.length===0?<div className="card"><p>No team leave requests.</p></div>:rows.map(r=>{const name=`${r.employees?.first_name||''} ${r.employees?.last_name||''}`.trim()||'Employee';return <div className="card" key={r.id}><h3 style={{marginTop:0,marginBottom:10}}>{name}</h3><span className="pill">{r.status}</span><p><strong>{r.leave_type.replaceAll('_',' ')}</strong></p><p>{r.start_date} to {r.end_date}</p>{r.reason&&<p className="muted">{r.reason}</p>}{r.medical_certificate_path&&<p><button className="button secondary" type="button" disabled={openingCertificate===r.id} onClick={()=>viewCertificate(r.id)}>{openingCertificate===r.id?'Opening certificate...':'View medical certificate'}</button></p>}{r.manager_comment&&<p><strong>Comment:</strong> {r.manager_comment}</p>}{r.status==='pending'&&<div style={{display:'flex',gap:8}}><button className="button" onClick={()=>setDecision({id:r.id,status:'approved',name})}>Approve</button><button className="button secondary" onClick={()=>setDecision({id:r.id,status:'declined',name})}>Decline</button></div>}</div>})}</div></section><section className="section"><Link href="/">← Back to My Portal</Link></section>{decision&&<div className="modal-backdrop" role="presentation"><section className="modal-card" role="dialog" aria-modal="true" aria-labelledby="decision-title"><h2 id="decision-title">{decision.status==='approved'?'Approve':'Decline'} leave for {decision.name}</h2><p className="muted">Review your decision before saving. Closing or cancelling this box will not change the request.</p><form onSubmit={saveDecision}><label htmlFor="manager-comment">Manager comment <span className="muted">(optional)</span></label><textarea id="manager-comment" name="comment" rows={4}/><div className="admin-form-actions"><button className="button" disabled={saving}>{saving?'Saving...':`Confirm ${decision.status}`}</button><button className="button secondary" type="button" disabled={saving} onClick={()=>setDecision(null)}>Cancel</button></div></form></section></div>}</main>;
+  return <main className="shell"><Header/><section className="hero"><span className="pill">Manager</span><h1>Team Leave Requests</h1><p className="muted">Review leave requests or book leave on behalf of staff.</p><p><Link className="button" href="/leave/book-for-staff">Book Leave for Staff</Link></p></section><section className="section">{errorMessage&&<div className="card" role="alert"><p className="warn">{errorMessage}</p></div>}<div className="grid">{rows.length===0?<div className="card"><p>No team leave requests.</p></div>:rows.map(r=>{const name=`${r.employees?.first_name||''} ${r.employees?.last_name||''}`.trim()||'Employee';return <div className="card" key={r.id}><h3 style={{marginTop:0,marginBottom:10}}>{name}</h3><span className="pill">{r.status}</span><p><strong>{r.leave_type.replaceAll('_',' ')}</strong></p><p>{r.start_date} to {r.end_date}</p>{r.reason&&<p className="muted">{r.reason}</p>}{r.medical_certificate_path&&<p><button className="button secondary" type="button" disabled={openingCertificate===r.id} onClick={()=>viewCertificate(r.id)}>{openingCertificate===r.id?'Opening certificate...':'View medical certificate'}</button></p>}{r.manager_comment&&<p><strong>Comment:</strong> {r.manager_comment}</p>}{r.status==='pending'&&<div style={{display:'flex',gap:8}}><button className="button" onClick={()=>setDecision({id:r.id,status:'approved',name})}>Approve</button><button className="button secondary" onClick={()=>setDecision({id:r.id,status:'declined',name})}>Decline</button></div>}</div>})}</div></section><section className="section"><Link href="/">← Back to My Portal</Link></section>{decision&&<div className="modal-backdrop" role="presentation"><section className="modal-card" role="dialog" aria-modal="true" aria-labelledby="decision-title"><h2 id="decision-title">{decision.status==='approved'?'Approve':'Decline'} leave for {decision.name}</h2><p className="muted">Review your decision before saving. Closing or cancelling this box will not change the request.</p><form onSubmit={saveDecision}><label htmlFor="manager-comment">Manager comment <span className="muted">(optional)</span></label><textarea id="manager-comment" name="comment" rows={4}/><div className="admin-form-actions"><button className="button" disabled={saving}>{saving?'Saving...':`Confirm ${decision.status}`}</button><button className="button secondary" type="button" disabled={saving} onClick={()=>setDecision(null)}>Cancel</button></div></form></section></div>}</main>;
 }
