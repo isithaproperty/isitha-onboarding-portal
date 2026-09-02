@@ -34,6 +34,7 @@ export default function OnboardingPage(){
       const acknowledgement={employee_id:employeeId,document_key:'hr_onboarding_policy',document_title:'HR Onboarding Policy',document_version:'1.1',acknowledged:true,acknowledged_at:now};
       const{data:ack}=await supabase.from('employee_document_acknowledgements').select('id').eq('employee_id',employeeId).eq('document_key','hr_onboarding_policy').maybeSingle();
       const{error:ackError}=ack?await supabase.from('employee_document_acknowledgements').update(acknowledgement).eq('id',ack.id):await supabase.from('employee_document_acknowledgements').insert(acknowledgement);if(ackError)throw ackError;
+      void fetch('/api/hr-notifications/onboarding-complete',{method:'POST'}).catch(()=>{});
       setExisting({status:'submitted'});setMessage('✓ Your HR onboarding details were submitted successfully.');
     }catch(error){if(process.env.NODE_ENV!=="production")console.error(error);if(newPath)await supabase.storage.from('employee-hr-documents').remove([newPath]);setMessage('Unable to save onboarding. Please try again or contact HR.')}finally{setSaving(false)}
   }
