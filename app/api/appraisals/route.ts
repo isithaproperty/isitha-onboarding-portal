@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { canManageAppraisals } from '@/lib/authz';
 import { createSupabaseAdminClient } from '@/lib/supabase-admin';
 import { getAuthenticatedUser, roleForUser, safeApiError } from '@/lib/server-auth';
+import { createHrCompletionNotification } from '@/lib/hr-notifications';
 
 type AppraisalBody = Record<string, unknown>;
 
@@ -41,6 +42,22 @@ async function authorisedEmployees(userId: string, role: ReturnType<typeof roleF
   const { data, error } = await query;
   if (error) throw error;
   return data || [];
+}
+
+async function notifyHrOnCompletion(appraisal: Record<string, any>, previousStatus: string | null, employees: Awaited<ReturnType<typeof authorisedEmployees>>) {
+  if (String(appraisal.status).toLowerCase() !== 'completed' || String(previousStatus || '').toLowerCase() === 'completed') return;
+  const employee = employees.find(item => item.id === appraisal.employee_id);
+  const employeeName = employee ? ([employee.first_name, employee.last_name].filter(Boolean).join(' ').trim() || employee.email || 'Employee') : 'Employee';
+  const probation = appraisal.appraisal_type === 'probation';
+  await createHrCompletionNotification({
+    eventKey: `appraisal:${appraisal.id}:completed`,
+    eventType: probation ? 'probation_completed' : 'appraisal_completed',
+    entityId: appraisal.id,
+    employeeId: appraisal.employee_id,
+    title: `${probation ? 'Probation review' : 'Appraisal'} completed – ${employeeName}`,
+    message: `${employeeName}'s ${probation ? 'probation review' : 'performance appraisal'} has been completed. Please log in to the Isitha portal to review the record.`,
+    actionPath: '/appraisals',
+  });
 }
 
 export async function GET() {
@@ -92,6 +109,7 @@ export async function POST(request: Request) {
 
     const status = cleanText(body.status) === 'completed' ? 'completed' : 'draft';
     const appraisalType = ['annual','probation','quarterly','mid_year','other'].includes(String(body.appraisal_type)) ? String(body.appraisal_type) : 'annual';
+    const now = new Date().toISOString();
 
     const payload: Record<string, unknown> = {
       employee_id: employeeId,
@@ -116,26 +134,30 @@ export async function POST(request: Request) {
       action_plan: cleanText(body.action_plan),
       next_review_date: cleanDate(body.next_review_date),
       updated_by: user.id,
-      updated_at: new Date().toISOString(),
+      updated_at: now,
     };
     for (const field of RATING_FIELDS) payload[field] = cleanRating(body[field]);
 
     const admin = createSupabaseAdminClient();
     const appraisalId = cleanText(body.id);
     if (appraisalId) {
-      const { data: existing, error: existingError } = await admin.from('appraisals').select('id,employee_id').eq('id', appraisalId).maybeSingle();
+      const { data: existing, error: existingError } = await admin.from('appraisals').select('id,employee_id,status,completed_at').eq('id', appraisalId).maybeSingle();
       if (existingError) throw existingError;
       if (!existing || !employees.some(employee => employee.id === existing.employee_id)) {
         return NextResponse.json({ error: 'Appraisal not found or access denied.' }, { status: 404 });
       }
+      payload.completed_at = status === 'completed' ? (existing.completed_at || now) : null;
       const { data, error } = await admin.from('appraisals').update(payload).eq('id', appraisalId).select('*').single();
       if (error) throw error;
+      await notifyHrOnCompletion(data, existing.status || null, employees);
       return NextResponse.json({ appraisal: data });
     }
 
     payload.created_by = user.id;
+    payload.completed_at = status === 'completed' ? now : null;
     const { data, error } = await admin.from('appraisals').insert(payload).select('*').single();
     if (error) throw error;
+    await notifyHrOnCompletion(data, null, employees);
     return NextResponse.json({ appraisal: data }, { status: 201 });
   } catch (error) {
     return NextResponse.json({ error: safeApiError(error, 'Unable to save this appraisal.') }, { status: 500 });
