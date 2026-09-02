@@ -44,6 +44,7 @@ export default function AppraisalsPage(){
   const[saving,setSaving]=useState(false);
   const[message,setMessage]=useState('');
   const[forbidden,setForbidden]=useState(false);
+  const[canAdminister,setCanAdminister]=useState(false);
 
   useEffect(()=>{void load()},[]);
   async function load(clearMessage=true){
@@ -53,7 +54,7 @@ export default function AppraisalsPage(){
       const data=await response.json();
       if(response.status===403){setForbidden(true);return}
       if(!response.ok){setMessage(data.error||'Unable to load reviews.');return}
-      setEmployees(data.employees||[]);setAppraisals(data.appraisals||[]);
+      setEmployees(data.employees||[]);setAppraisals(data.appraisals||[]);setCanAdminister(Boolean(data.canAdminister));
     }catch{setMessage('Unable to load reviews. Please try again.')}finally{setLoading(false)}
   }
 
@@ -75,6 +76,25 @@ export default function AppraisalsPage(){
     const next={...blankForm};
     for(const key of Object.keys(next) as (keyof FormState)[]){const value=appraisal[key];(next as any)[key]=value===null||value===undefined?'':String(value)}
     setForm(next);setMessage('');window.scrollTo({top:0,behavior:'smooth'});
+  }
+  function downloadReview(appraisal:Appraisal){
+    if(!canAdminister)return;
+    editAppraisal(appraisal);
+    window.setTimeout(()=>window.print(),250);
+  }
+  async function deleteReview(appraisal:Appraisal){
+    if(!canAdminister)return;
+    const kind=appraisal.appraisal_type==='probation'?'probation review':'appraisal';
+    if(!window.confirm(`Delete this ${kind}? This cannot be undone.`))return;
+    setMessage('');
+    try{
+      const response=await fetch(`/api/appraisals?id=${encodeURIComponent(appraisal.id)}`,{method:'DELETE'});
+      const data=await response.json();
+      if(!response.ok){setMessage(data.error||'Unable to delete this review.');return}
+      if(form.id===appraisal.id)newReview();
+      await load(false);
+      setMessage(`✓ ${appraisal.appraisal_type==='probation'?'Probation review':'Appraisal'} deleted.`);
+    }catch{setMessage('Unable to delete this review. Please try again.')}
   }
 
   async function save(event:FormEvent){
@@ -101,7 +121,7 @@ export default function AppraisalsPage(){
     </div></section>
 
     {!mode?<section className="section"><div className="card"><h2>Select a review type</h2><p className="muted">Choose Performance Appraisal or Probation Review above to open the relevant document.</p></div></section>:<>
-    <section className="section"><div className="card"><div style={{display:'flex',justifyContent:'space-between',gap:12,flexWrap:'wrap',alignItems:'center'}}><div><h2 style={{marginBottom:4}}>{mode==='probation'?'Probation Review Document':'Performance Appraisal Document'}</h2><p className="muted" style={{margin:0}}>{form.id?'Editing an existing review':'Start a new review and save it as a draft until complete.'}</p></div><div style={{display:'flex',gap:10,flexWrap:'wrap'}}><button className="button" type="button" onClick={newReview}>New {mode==='probation'?'probation review':'appraisal'}</button><button className="button" type="button" onClick={()=>window.print()}>Print / Save PDF</button></div></div></div></section>
+    <section className="section"><div className="card"><div style={{display:'flex',justifyContent:'space-between',gap:12,flexWrap:'wrap',alignItems:'center'}}><div><h2 style={{marginBottom:4}}>{mode==='probation'?'Probation Review Document':'Performance Appraisal Document'}</h2><p className="muted" style={{margin:0}}>{form.id?'Editing an existing review':'Start a new review and save it as a draft until complete.'}</p></div><div style={{display:'flex',gap:10,flexWrap:'wrap'}}><button className="button" type="button" onClick={newReview}>New {mode==='probation'?'probation review':'appraisal'}</button>{canAdminister&&<button className="button" type="button" onClick={()=>window.print()}>Download / Save PDF</button>}</div></div></div></section>
 
     {loading?<section className="section"><div className="card">Loading reviews…</div></section>:
     <form onSubmit={save}>
@@ -129,7 +149,7 @@ export default function AppraisalsPage(){
       <section className="section"><div className="card"><h2>7. Completion</h2>{mode==='probation'&&<p className="muted"><strong>Probation outcome:</strong> record the decision and any extension, support measures or confirmation of appointment in the manager comments and action plan.</p>}<div className="form-grid"><label><strong>Status</strong><select value={form.status} onChange={e=>set('status',e.target.value)}><option value="draft">Draft</option><option value="completed">Completed</option></select></label></div><p className="muted">Use Draft while the review is being prepared. Change to Completed once the review meeting is finished.</p><button className="button" disabled={saving} type="submit" style={{border:0,cursor:saving?'not-allowed':'pointer',opacity:saving?0.6:1}}>{saving?'Saving…':form.status==='completed'?'Complete & save review':'Save draft'}</button>{message&&<p role="status" style={{marginTop:16,fontWeight:600}}>{message}</p>}</div></section>
     </form>}
 
-    <section className="section no-print"><div className="card"><h2>{mode==='probation'?'Probation review history':'Appraisal history'}</h2>{visibleHistory.length===0?<p className="muted">No {mode==='probation'?'probation reviews':'appraisals'} have been recorded yet.</p>:<div style={{display:'grid',gap:12}}>{visibleHistory.map(appraisal=>{const employee=employees.find(item=>item.id===appraisal.employee_id);return <div key={appraisal.id} style={{border:'1px solid #ddd',borderRadius:10,padding:14,display:'flex',justifyContent:'space-between',alignItems:'center',gap:12,flexWrap:'wrap'}}><div><strong>{labelForEmployee(employee)}</strong><div className="muted">{appraisal.review_date} · {appraisal.appraisal_type==='probation'?'probation review':String(appraisal.appraisal_type||'annual').replace('_',' ')} · {appraisal.status}</div></div><button type="button" className="button" onClick={()=>editAppraisal(appraisal)}>Open review</button></div>})}</div>}</div></section>
+    <section className="section no-print"><div className="card"><h2>{mode==='probation'?'Probation review history':'Appraisal history'}</h2>{visibleHistory.length===0?<p className="muted">No {mode==='probation'?'probation reviews':'appraisals'} have been recorded yet.</p>:<div style={{display:'grid',gap:12}}>{visibleHistory.map(appraisal=>{const employee=employees.find(item=>item.id===appraisal.employee_id);return <div key={appraisal.id} style={{border:'1px solid #ddd',borderRadius:10,padding:14,display:'flex',justifyContent:'space-between',alignItems:'center',gap:12,flexWrap:'wrap'}}><div><strong>{labelForEmployee(employee)}</strong><div className="muted">{appraisal.review_date} · {appraisal.appraisal_type==='probation'?'probation review':String(appraisal.appraisal_type||'annual').replace('_',' ')} · {appraisal.status}</div></div><div style={{display:'flex',gap:8,flexWrap:'wrap'}}><button type="button" className="button" onClick={()=>editAppraisal(appraisal)}>Open review</button>{canAdminister&&<><button type="button" className="button" onClick={()=>downloadReview(appraisal)}>Download PDF</button><button type="button" className="button" onClick={()=>deleteReview(appraisal)}>Delete</button></>}</div></div>})}</div>}</div></section>
     </>}
 
     <style jsx global>{`@media print{.site-header,.no-print,button{display:none!important}.shell{max-width:none!important}.card{break-inside:avoid;box-shadow:none!important;border:1px solid #ccc!important}.section{margin:12px 0!important}input,select,textarea{border:0!important;padding:0!important;background:transparent!important;appearance:none!important}.hero{padding-top:0!important}}`}</style>

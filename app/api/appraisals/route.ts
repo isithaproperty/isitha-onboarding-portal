@@ -27,6 +27,10 @@ function cleanRating(value: unknown) {
   return Number.isInteger(number) && number >= 1 && number <= 5 ? number : null;
 }
 
+function canAdministerAppraisals(role: ReturnType<typeof roleForUser>) {
+  return role === 'hr_admin' || role === 'admin';
+}
+
 async function authorisedEmployees(userId: string, role: ReturnType<typeof roleForUser>) {
   const admin = createSupabaseAdminClient();
   let query = admin.from('employees')
@@ -48,7 +52,7 @@ export async function GET() {
 
     const employees = await authorisedEmployees(user.id, role);
     const employeeIds = employees.map(employee => employee.id);
-    if (!employeeIds.length) return NextResponse.json({ employees, appraisals: [] });
+    if (!employeeIds.length) return NextResponse.json({ employees, appraisals: [], canAdminister: canAdministerAppraisals(role) });
 
     const admin = createSupabaseAdminClient();
     const { data: appraisals, error } = await admin.from('appraisals')
@@ -58,7 +62,7 @@ export async function GET() {
       .order('created_at', { ascending: false });
     if (error) throw error;
 
-    return NextResponse.json({ employees, appraisals: appraisals || [] });
+    return NextResponse.json({ employees, appraisals: appraisals || [], canAdminister: canAdministerAppraisals(role) });
   } catch (error) {
     return NextResponse.json({ error: safeApiError(error, 'Unable to load appraisals.') }, { status: 500 });
   }
@@ -135,5 +139,29 @@ export async function POST(request: Request) {
     return NextResponse.json({ appraisal: data }, { status: 201 });
   } catch (error) {
     return NextResponse.json({ error: safeApiError(error, 'Unable to save this appraisal.') }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const user = await getAuthenticatedUser();
+    if (!user) return NextResponse.json({ error: 'Please sign in again.' }, { status: 401 });
+    const role = roleForUser(user);
+    if (!canAdministerAppraisals(role)) return NextResponse.json({ error: 'Only HR and Admin can delete appraisals or probation reviews.' }, { status: 403 });
+
+    const url = new URL(request.url);
+    const appraisalId = cleanText(url.searchParams.get('id'));
+    if (!appraisalId) return NextResponse.json({ error: 'Review ID is required.' }, { status: 400 });
+
+    const admin = createSupabaseAdminClient();
+    const { data: existing, error: existingError } = await admin.from('appraisals').select('id').eq('id', appraisalId).maybeSingle();
+    if (existingError) throw existingError;
+    if (!existing) return NextResponse.json({ error: 'Review not found.' }, { status: 404 });
+
+    const { error } = await admin.from('appraisals').delete().eq('id', appraisalId);
+    if (error) throw error;
+    return NextResponse.json({ deleted: true });
+  } catch (error) {
+    return NextResponse.json({ error: safeApiError(error, 'Unable to delete this review.') }, { status: 500 });
   }
 }
