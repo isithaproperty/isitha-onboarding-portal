@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Header } from '@/components/Header';
 
@@ -15,17 +15,25 @@ type Renewal = {
   action_path: string;
 };
 
+type Filter = 'all' | 'due' | 'overdue' | 'current';
+
 function statusFor(days: number) {
-  if (days < 0) return { label: `Overdue by ${Math.abs(days)} day${Math.abs(days) === 1 ? '' : 's'}`, tone: '#991b1b' };
+  if (days < 0) return { label: `Overdue ${Math.abs(days)}d`, tone: '#991b1b' };
   if (days === 0) return { label: 'Due today', tone: '#991b1b' };
-  if (days <= 30) return { label: `${days} day${days === 1 ? '' : 's'} remaining`, tone: '#92400e' };
-  return { label: `${days} days remaining`, tone: '#166534' };
+  if (days <= 30) return { label: `Due in ${days}d`, tone: '#92400e' };
+  return { label: 'Up to date', tone: '#166534' };
+}
+
+function date(value: string) {
+  return new Date(value).toLocaleDateString();
 }
 
 export default function RenewalsPage() {
   const [renewals, setRenewals] = useState<Renewal[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState<Filter>('all');
 
   useEffect(() => { void load(); }, []);
 
@@ -42,12 +50,32 @@ export default function RenewalsPage() {
     }
   }
 
-  const dueSoon = renewals.filter(item => item.days_remaining <= 30).length;
+  const filtered = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return renewals.filter(item => {
+      const matchesSearch = !term || item.employee_name.toLowerCase().includes(term) || item.title.toLowerCase().includes(term) || item.kind.includes(term);
+      const matchesFilter = filter === 'all'
+        || (filter === 'overdue' && item.days_remaining < 0)
+        || (filter === 'due' && item.days_remaining >= 0 && item.days_remaining <= 30)
+        || (filter === 'current' && item.days_remaining > 30);
+      return matchesSearch && matchesFilter;
+    });
+  }, [renewals, search, filter]);
+
+  const dueSoon = renewals.filter(item => item.days_remaining >= 0 && item.days_remaining <= 30).length;
   const overdue = renewals.filter(item => item.days_remaining < 0).length;
 
   return <main className="shell"><Header/>
-    <section className="hero"><span className="pill">Annual compliance cycle</span><h1>Training & Appraisal Renewals</h1><p className="muted">Completed mandatory training and performance appraisals renew 12 months after completion. This timer is visible according to your portal role.</p></section>
-    <section className="section"><div className="grid"><div className="card"><div className="muted">Annual items tracked</div><div className="metric">{renewals.length}</div></div><div className="card"><div className="muted">Due within 30 days</div><div className="metric">{dueSoon}</div></div><div className="card"><div className="muted">Overdue</div><div className="metric">{overdue}</div></div></div></section>
-    <section className="section"><div className="card"><h2>Renewal timers</h2>{loading?<p>Loading renewal timers…</p>:message?<p role="status">{message}</p>:renewals.length===0?<p className="muted">No completed training or appraisals are currently waiting for annual renewal.</p>:<div style={{display:'grid',gap:12}}>{renewals.map(item=>{const status=statusFor(item.days_remaining);return <div key={item.id} style={{border:'1px solid #e5e7eb',borderRadius:10,padding:16,display:'flex',justifyContent:'space-between',gap:16,alignItems:'center',flexWrap:'wrap'}}><div><span className="pill">{item.kind==='training'?'Training':'Appraisal'}</span><h3 style={{marginBottom:4}}>{item.title}</h3><div><strong>{item.employee_name}</strong></div><div className="muted">Completed {new Date(item.completed_at).toLocaleDateString()} · Renews {new Date(item.due_at).toLocaleDateString()}</div><div style={{fontWeight:700,color:status.tone,marginTop:6}}>{status.label}</div></div><Link className="button" href={item.action_path}>{item.kind==='training'?'Open training':'Open appraisals'}</Link></div>})}</div>}</div></section>
+    <section className="hero"><span className="pill">Annual compliance cycle</span><h1>Training & Appraisal Renewals</h1><p className="muted">A compact overview of annual training and performance appraisal renewal dates. Your view is limited by your portal role.</p></section>
+    <section className="section"><div className="card">
+      <div style={{display:'flex',justifyContent:'space-between',gap:12,alignItems:'center',flexWrap:'wrap',marginBottom:16}}>
+        <div><h2 style={{marginBottom:4}}>Renewal overview</h2><div className="muted">{renewals.length} tracked · {dueSoon} due within 30 days · {overdue} overdue</div></div>
+        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+          <input aria-label="Search renewals" placeholder="Search staff or training…" value={search} onChange={event=>setSearch(event.target.value)} style={{minWidth:220,padding:'10px 12px',border:'1px solid #d1d5db',borderRadius:8}}/>
+          <select aria-label="Filter renewals" value={filter} onChange={event=>setFilter(event.target.value as Filter)} style={{padding:'10px 12px',border:'1px solid #d1d5db',borderRadius:8}}><option value="all">All</option><option value="due">Due soon</option><option value="overdue">Overdue</option><option value="current">Up to date</option></select>
+        </div>
+      </div>
+      {loading?<p>Loading renewal overview…</p>:message?<p role="status">{message}</p>:renewals.length===0?<p className="muted">No completed training or appraisals are currently waiting for annual renewal.</p>:<div style={{overflowX:'auto'}}><table style={{width:'100%',borderCollapse:'collapse',fontSize:14,minWidth:820}}><thead><tr style={{textAlign:'left',borderBottom:'2px solid #e5e7eb'}}><th style={{padding:'10px 8px'}}>Employee</th><th style={{padding:'10px 8px'}}>Type</th><th style={{padding:'10px 8px'}}>Training / Appraisal</th><th style={{padding:'10px 8px'}}>Completed</th><th style={{padding:'10px 8px'}}>Renewal due</th><th style={{padding:'10px 8px'}}>Status</th><th style={{padding:'10px 8px'}}>Action</th></tr></thead><tbody>{filtered.map(item=>{const status=statusFor(item.days_remaining);return <tr key={item.id} style={{borderBottom:'1px solid #e5e7eb'}}><td style={{padding:'10px 8px',fontWeight:700,whiteSpace:'nowrap'}}>{item.employee_name}</td><td style={{padding:'10px 8px'}}>{item.kind==='training'?'Training':'Appraisal'}</td><td style={{padding:'10px 8px'}}>{item.title}</td><td style={{padding:'10px 8px',whiteSpace:'nowrap'}}>{date(item.completed_at)}</td><td style={{padding:'10px 8px',whiteSpace:'nowrap'}}>{date(item.due_at)}</td><td style={{padding:'10px 8px',fontWeight:700,color:status.tone,whiteSpace:'nowrap'}}>{status.label}</td><td style={{padding:'10px 8px'}}><Link href={item.action_path}>Open</Link></td></tr>})}</tbody></table>{filtered.length===0&&<p className="muted" style={{padding:'16px 8px'}}>No renewals match your search or filter.</p>}</div>}
+    </div></section>
   </main>;
 }
