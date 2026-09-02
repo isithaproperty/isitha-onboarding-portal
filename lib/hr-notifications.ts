@@ -5,7 +5,7 @@ import { createSupabaseAdminClient } from '@/lib/supabase-admin';
 
 type NotificationInput = {
   eventKey: string;
-  eventType: 'onboarding_completed' | 'appraisal_completed' | 'probation_completed';
+  eventType: 'onboarding_completed' | 'appraisal_completed' | 'probation_completed' | 'training_renewal_due' | 'appraisal_renewal_due';
   entityId?: string | null;
   employeeId?: string | null;
   title: string;
