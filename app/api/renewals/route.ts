@@ -42,8 +42,8 @@ export async function GET() {
 
     const [{ data: employees, error: employeeError }, { data: training, error: trainingError }, { data: appraisals, error: appraisalError }] = await Promise.all([
       admin.from('employees').select('id,first_name,last_name,email').in('id', employeeIds),
-      admin.from('training_progress').select('id,employee_id,course_id,status,completed_at,training_courses(title,slug)').in('employee_id', employeeIds).eq('status', 'completed').not('completed_at', 'is', null),
-      admin.from('appraisals').select('id,employee_id,appraisal_type,review_date,updated_at').in('employee_id', employeeIds).eq('status', 'completed').neq('appraisal_type', 'probation'),
+      admin.from('training_progress').select('id,employee_id,course_id,status,completed_at,training_courses(title,slug)').in('employee_id', employeeIds).in('status', ['completed','renewal_due']).not('completed_at', 'is', null),
+      admin.from('appraisals').select('id,employee_id,appraisal_type,review_date,completed_at').in('employee_id', employeeIds).eq('status', 'completed').neq('appraisal_type', 'probation').not('completed_at', 'is', null),
     ]);
     if (employeeError) throw employeeError;
     if (trainingError) throw trainingError;
@@ -66,18 +66,20 @@ export async function GET() {
         completed_at: row.completed_at,
         due_at: due.toISOString(),
         days_remaining: daysUntil(due),
+        renewal_due: row.status === 'renewal_due',
         action_path: course?.slug ? `/training/${course.slug}` : '/',
       });
     }
 
     const latestByEmployee = new Map<string, any>();
     for (const row of appraisals || []) {
+      if (!row.completed_at) continue;
       const current = latestByEmployee.get(row.employee_id);
-      const timestamp = new Date(row.updated_at || row.review_date).getTime();
+      const timestamp = new Date(row.completed_at).getTime();
       if (!current || timestamp > current.timestamp) latestByEmployee.set(row.employee_id, { row, timestamp });
     }
     for (const { row } of latestByEmployee.values()) {
-      const completed = row.updated_at || `${row.review_date}T00:00:00.000Z`;
+      const completed = row.completed_at as string;
       const due = dueDate(completed);
       const employee = employeeMap.get(row.employee_id);
       renewals.push({
