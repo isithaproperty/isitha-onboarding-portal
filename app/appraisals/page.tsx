@@ -44,8 +44,8 @@ export default function AppraisalsPage(){
   const[forbidden,setForbidden]=useState(false);
 
   useEffect(()=>{void load()},[]);
-  async function load(){
-    setLoading(true);setMessage('');
+  async function load(clearMessage=true){
+    setLoading(true);if(clearMessage)setMessage('');
     try{
       const response=await fetch('/api/appraisals',{cache:'no-store'});
       const data=await response.json();
@@ -70,9 +70,9 @@ export default function AppraisalsPage(){
       const response=await fetch('/api/appraisals',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(form)});
       const data=await response.json();
       if(!response.ok){setMessage(data.error||'Unable to save appraisal.');return}
-      setMessage(form.status==='completed'?'✓ Appraisal completed and saved.':'✓ Draft appraisal saved.');
       setForm(current=>({...current,id:data.appraisal.id}));
-      await load();
+      await load(false);
+      setMessage(form.status==='completed'?'✓ Appraisal completed and saved.':'✓ Draft appraisal saved.');
     }catch{setMessage('Unable to save appraisal. Please try again.')}finally{setSaving(false)}
   }
 
@@ -106,7 +106,7 @@ export default function AppraisalsPage(){
 
       <section className="section"><div className="card"><h2>6. Appraisal comments</h2><div className="form-grid"><TextArea label="Manager / reviewer comments" value={form.manager_comments} onChange={v=>set('manager_comments',v)}/><TextArea label="Employee comments recorded during appraisal" value={form.employee_comments} onChange={v=>set('employee_comments',v)} placeholder="Record the employee's response, comments or points raised during the meeting."/><TextArea label="HR comments" value={form.hr_comments} onChange={v=>set('hr_comments',v)} placeholder="For HR review, moderation or follow-up."/></div></div></section>
 
-      <section className="section"><div className="card"><h2>7. Completion</h2><div className="form-grid"><label><strong>Status</strong><select value={form.status} onChange={e=>set('status',e.target.value)}><option value="draft">Draft</option><option value="completed">Completed</option></select></label></div><p className="muted">Use Draft while the appraisal is being prepared. Change to Completed once the appraisal meeting and review are finished.</p><button className="button" disabled={saving} type="submit" style={{border:0,cursor:saving?'not-allowed':'pointer',opacity:saving?.6:1}}>{saving?'Saving…':form.status==='completed'?'Complete & save appraisal':'Save draft'}</button>{message&&<p role="status" style={{marginTop:16,fontWeight:600}}>{message}</p>}</div></section>
+      <section className="section"><div className="card"><h2>7. Completion</h2><div className="form-grid"><label><strong>Status</strong><select value={form.status} onChange={e=>set('status',e.target.value)}><option value="draft">Draft</option><option value="completed">Completed</option></select></label></div><p className="muted">Use Draft while the appraisal is being prepared. Change to Completed once the appraisal meeting and review are finished.</p><button className="button" disabled={saving} type="submit" style={{border:0,cursor:saving?'not-allowed':'pointer',opacity:saving?0.6:1}}>{saving?'Saving…':form.status==='completed'?'Complete & save appraisal':'Save draft'}</button>{message&&<p role="status" style={{marginTop:16,fontWeight:600}}>{message}</p>}</div></section>
     </form>}
 
     <section className="section no-print"><div className="card"><h2>Appraisal history</h2>{appraisals.length===0?<p className="muted">No appraisals have been recorded yet.</p>:<div style={{display:'grid',gap:12}}>{appraisals.map(appraisal=>{const employee=employees.find(item=>item.id===appraisal.employee_id);return <div key={appraisal.id} style={{border:'1px solid #ddd',borderRadius:10,padding:14,display:'flex',justifyContent:'space-between',alignItems:'center',gap:12,flexWrap:'wrap'}}><div><strong>{labelForEmployee(employee)}</strong><div className="muted">{appraisal.review_date} · {String(appraisal.appraisal_type||'annual').replace('_',' ')} · {appraisal.status}</div></div><button type="button" className="button" onClick={()=>editAppraisal(appraisal)}>Open appraisal</button></div>})}</div>}</div></section>
