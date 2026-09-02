@@ -5,6 +5,7 @@ import { Header } from '@/components/Header';
 
 type Employee = { id:string; first_name:string|null; last_name:string|null; email:string|null; job_title:string|null; client_name:string|null };
 type Appraisal = Record<string, any> & { id:string; employee_id:string; review_date:string; status:string; appraisal_type:string };
+type ReviewMode = 'appraisal' | 'probation';
 
 type FormState = {
   id:string; employee_id:string; review_date:string; review_period_start:string; review_period_end:string; appraisal_type:string; status:string;
@@ -38,6 +39,7 @@ export default function AppraisalsPage(){
   const[employees,setEmployees]=useState<Employee[]>([]);
   const[appraisals,setAppraisals]=useState<Appraisal[]>([]);
   const[form,setForm]=useState<FormState>(blankForm);
+  const[mode,setMode]=useState<ReviewMode|null>(null);
   const[loading,setLoading]=useState(true);
   const[saving,setSaving]=useState(false);
   const[message,setMessage]=useState('');
@@ -50,15 +52,26 @@ export default function AppraisalsPage(){
       const response=await fetch('/api/appraisals',{cache:'no-store'});
       const data=await response.json();
       if(response.status===403){setForbidden(true);return}
-      if(!response.ok){setMessage(data.error||'Unable to load appraisals.');return}
+      if(!response.ok){setMessage(data.error||'Unable to load reviews.');return}
       setEmployees(data.employees||[]);setAppraisals(data.appraisals||[]);
-    }catch{setMessage('Unable to load appraisals. Please try again.')}finally{setLoading(false)}
+    }catch{setMessage('Unable to load reviews. Please try again.')}finally{setLoading(false)}
   }
 
   const selectedEmployee=useMemo(()=>employees.find(employee=>employee.id===form.employee_id),[employees,form.employee_id]);
+  const visibleHistory=useMemo(()=>mode ? appraisals.filter(item=>mode==='probation' ? item.appraisal_type==='probation' : item.appraisal_type!=='probation') : [],[appraisals,mode]);
   function set<K extends keyof FormState>(key:K,value:FormState[K]){setForm(current=>({...current,[key]:value}))}
-  function newAppraisal(){setForm({...blankForm,review_date:new Date().toISOString().slice(0,10)});setMessage('');window.scrollTo({top:0,behavior:'smooth'})}
+  function openMode(nextMode:ReviewMode){
+    setMode(nextMode);
+    setForm({...blankForm,review_date:new Date().toISOString().slice(0,10),appraisal_type:nextMode==='probation'?'probation':'annual'});
+    setMessage('');
+  }
+  function newReview(){
+    if(!mode)return;
+    setForm({...blankForm,review_date:new Date().toISOString().slice(0,10),appraisal_type:mode==='probation'?'probation':'annual'});
+    setMessage('');window.scrollTo({top:0,behavior:'smooth'});
+  }
   function editAppraisal(appraisal:Appraisal){
+    setMode(appraisal.appraisal_type==='probation'?'probation':'appraisal');
     const next={...blankForm};
     for(const key of Object.keys(next) as (keyof FormState)[]){const value=appraisal[key];(next as any)[key]=value===null||value===undefined?'':String(value)}
     setForm(next);setMessage('');window.scrollTo({top:0,behavior:'smooth'});
@@ -69,47 +82,55 @@ export default function AppraisalsPage(){
     try{
       const response=await fetch('/api/appraisals',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(form)});
       const data=await response.json();
-      if(!response.ok){setMessage(data.error||'Unable to save appraisal.');return}
+      if(!response.ok){setMessage(data.error||'Unable to save review.');return}
       setForm(current=>({...current,id:data.appraisal.id}));
       await load(false);
-      setMessage(form.status==='completed'?'✓ Appraisal completed and saved.':'✓ Draft appraisal saved.');
-    }catch{setMessage('Unable to save appraisal. Please try again.')}finally{setSaving(false)}
+      const label=mode==='probation'?'Probation review':'Appraisal';
+      setMessage(form.status==='completed'?`✓ ${label} completed and saved.`:`✓ Draft ${label.toLowerCase()} saved.`);
+    }catch{setMessage('Unable to save review. Please try again.')}finally{setSaving(false)}
   }
 
-  if(forbidden)return <main className="shell"><Header/><section className="hero"><h1>Appraisals</h1><p className="muted">This area is only available to Managers and HR.</p></section></main>;
+  if(forbidden)return <main className="shell"><Header/><section className="hero"><h1>Appraisals & Probation Reviews</h1><p className="muted">This area is only available to Managers and HR.</p></section></main>;
 
   return <main className="shell appraisal-print"><Header/>
-    <section className="hero"><span className="pill">Managers & HR only</span><h1>Employee Appraisals</h1><p className="muted">Create, save and complete structured employee performance appraisals. Managers only see employees assigned to them; HR can access all employees.</p></section>
+    <section className="hero"><span className="pill">Managers & HR only</span><h1>Appraisals & Probation Reviews</h1><p className="muted">Choose the type of employee review you want to complete. Managers only see employees assigned to them; HR can access all employees.</p></section>
 
-    <section className="section"><div className="card"><div style={{display:'flex',justifyContent:'space-between',gap:12,flexWrap:'wrap',alignItems:'center'}}><div><h2 style={{marginBottom:4}}>Appraisal document</h2><p className="muted" style={{margin:0}}>{form.id?'Editing an existing appraisal':'Start a new appraisal and save it as a draft until complete.'}</p></div><div style={{display:'flex',gap:10,flexWrap:'wrap'}}><button className="button" type="button" onClick={newAppraisal}>New appraisal</button><button className="button" type="button" onClick={()=>window.print()}>Print / Save PDF</button></div></div></div></section>
+    <section className="section no-print"><div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))',gap:16}}>
+      <button type="button" onClick={()=>openMode('appraisal')} className="card" style={{textAlign:'left',cursor:'pointer',border:mode==='appraisal'?'2px solid currentColor':'1px solid #ddd',background:'inherit',padding:22}}><h2 style={{marginTop:0}}>Performance Appraisal</h2><p className="muted">Complete annual, mid-year, quarterly or other structured performance appraisals.</p><strong>Open Appraisals →</strong></button>
+      <button type="button" onClick={()=>openMode('probation')} className="card" style={{textAlign:'left',cursor:'pointer',border:mode==='probation'?'2px solid currentColor':'1px solid #ddd',background:'inherit',padding:22}}><h2 style={{marginTop:0}}>Probation Review</h2><p className="muted">Complete and record a formal review of an employee during or at the end of probation.</p><strong>Open Probation Reviews →</strong></button>
+    </div></section>
 
-    {loading?<section className="section"><div className="card">Loading appraisals…</div></section>:
+    {!mode?<section className="section"><div className="card"><h2>Select a review type</h2><p className="muted">Choose Performance Appraisal or Probation Review above to open the relevant document.</p></div></section>:<>
+    <section className="section"><div className="card"><div style={{display:'flex',justifyContent:'space-between',gap:12,flexWrap:'wrap',alignItems:'center'}}><div><h2 style={{marginBottom:4}}>{mode==='probation'?'Probation Review Document':'Performance Appraisal Document'}</h2><p className="muted" style={{margin:0}}>{form.id?'Editing an existing review':'Start a new review and save it as a draft until complete.'}</p></div><div style={{display:'flex',gap:10,flexWrap:'wrap'}}><button className="button" type="button" onClick={newReview}>New {mode==='probation'?'probation review':'appraisal'}</button><button className="button" type="button" onClick={()=>window.print()}>Print / Save PDF</button></div></div></div></section>
+
+    {loading?<section className="section"><div className="card">Loading reviews…</div></section>:
     <form onSubmit={save}>
       <section className="section"><div className="card"><h2>1. Employee & review details</h2><div className="form-grid">
         <label><strong>Employee *</strong><select required value={form.employee_id} onChange={e=>set('employee_id',e.target.value)}><option value="">Select employee</option>{employees.map(employee=><option value={employee.id} key={employee.id}>{labelForEmployee(employee)}{employee.job_title?` – ${employee.job_title}`:''}</option>)}</select></label>
-        <label><strong>Appraisal type</strong><select value={form.appraisal_type} onChange={e=>set('appraisal_type',e.target.value)}><option value="annual">Annual appraisal</option><option value="mid_year">Mid-year review</option><option value="quarterly">Quarterly review</option><option value="probation">Probation review</option><option value="other">Other</option></select></label>
+        {mode==='appraisal'?<label><strong>Appraisal type</strong><select value={form.appraisal_type} onChange={e=>set('appraisal_type',e.target.value)}><option value="annual">Annual appraisal</option><option value="mid_year">Mid-year review</option><option value="quarterly">Quarterly review</option><option value="other">Other</option></select></label>:<label><strong>Review type</strong><input value="Probation review" readOnly/></label>}
         <label><strong>Review date *</strong><input type="date" required value={form.review_date} onChange={e=>set('review_date',e.target.value)}/></label>
-        <label><strong>Review period start *</strong><input type="date" required value={form.review_period_start} onChange={e=>set('review_period_start',e.target.value)}/></label>
-        <label><strong>Review period end *</strong><input type="date" required value={form.review_period_end} onChange={e=>set('review_period_end',e.target.value)}/></label>
+        <label><strong>{mode==='probation'?'Probation period start *':'Review period start *'}</strong><input type="date" required value={form.review_period_start} onChange={e=>set('review_period_start',e.target.value)}/></label>
+        <label><strong>{mode==='probation'?'Probation period end *':'Review period end *'}</strong><input type="date" required value={form.review_period_end} onChange={e=>set('review_period_end',e.target.value)}/></label>
         <label><strong>Next review date</strong><input type="date" value={form.next_review_date} onChange={e=>set('next_review_date',e.target.value)}/></label>
       </div>{selectedEmployee&&<div style={{marginTop:16}}><strong>{labelForEmployee(selectedEmployee)}</strong>{selectedEmployee.job_title&&<span className="muted"> · {selectedEmployee.job_title}</span>}{selectedEmployee.client_name&&<span className="muted"> · {selectedEmployee.client_name}</span>}</div>}</div></section>
 
       <section className="section"><div className="card"><h2>2. Performance ratings</h2><p className="muted">1 = needs significant improvement, 3 = meets expectations, 5 = outstanding.</p><div className="form-grid">
-        <Rating label="Overall performance" value={form.performance_rating} onChange={v=>set('performance_rating',v)}/><Rating label="Quality of work" value={form.quality_rating} onChange={v=>set('quality_rating',v)}/><Rating label="Communication" value={form.communication_rating} onChange={v=>set('communication_rating',v)}/><Rating label="Teamwork" value={form.teamwork_rating} onChange={v=>set('teamwork_rating',v)}/><Rating label="Reliability & ownership" value={form.reliability_rating} onChange={v=>set('reliability_rating',v)}/><Rating label="Initiative" value={form.initiative_rating} onChange={v=>set('initiative_rating',v)}/><Rating label="Leadership / management" value={form.leadership_rating} onChange={v=>set('leadership_rating',v)}/><Rating label="Overall appraisal rating" value={form.overall_rating} onChange={v=>set('overall_rating',v)}/>
+        <Rating label="Overall performance" value={form.performance_rating} onChange={v=>set('performance_rating',v)}/><Rating label="Quality of work" value={form.quality_rating} onChange={v=>set('quality_rating',v)}/><Rating label="Communication" value={form.communication_rating} onChange={v=>set('communication_rating',v)}/><Rating label="Teamwork" value={form.teamwork_rating} onChange={v=>set('teamwork_rating',v)}/><Rating label="Reliability & ownership" value={form.reliability_rating} onChange={v=>set('reliability_rating',v)}/><Rating label="Initiative" value={form.initiative_rating} onChange={v=>set('initiative_rating',v)}/><Rating label="Leadership / management" value={form.leadership_rating} onChange={v=>set('leadership_rating',v)}/><Rating label="Overall review rating" value={form.overall_rating} onChange={v=>set('overall_rating',v)}/>
       </div></div></section>
 
-      <section className="section"><div className="card"><h2>3. Results, objectives & contribution</h2><div className="form-grid"><TextArea label="Key achievements" value={form.achievements} onChange={v=>set('achievements',v)} placeholder="Major results, projects, client feedback and contributions during the review period."/><TextArea label="Review of previous objectives" value={form.objectives_review} onChange={v=>set('objectives_review',v)} placeholder="What objectives were set, what was achieved, and what remains outstanding?"/><TextArea label="Key strengths" value={form.strengths} onChange={v=>set('strengths',v)}/><TextArea label="Areas for improvement" value={form.improvement_areas} onChange={v=>set('improvement_areas',v)}/></div></div></section>
+      <section className="section"><div className="card"><h2>3. Results, objectives & contribution</h2><div className="form-grid"><TextArea label={mode==='probation'?'Key achievements during probation':'Key achievements'} value={form.achievements} onChange={v=>set('achievements',v)} placeholder="Major results, projects, client feedback and contributions during the review period."/><TextArea label={mode==='probation'?'Progress against probation expectations':'Review of previous objectives'} value={form.objectives_review} onChange={v=>set('objectives_review',v)} placeholder="What was expected, what was achieved, and what remains outstanding?"/><TextArea label="Key strengths" value={form.strengths} onChange={v=>set('strengths',v)}/><TextArea label="Areas for improvement" value={form.improvement_areas} onChange={v=>set('improvement_areas',v)}/></div></div></section>
 
       <section className="section"><div className="card"><h2>4. Attendance, conduct & working relationships</h2><div className="form-grid"><TextArea label="Attendance & punctuality" value={form.attendance_comments} onChange={v=>set('attendance_comments',v)} placeholder="Attendance, timekeeping, reliability and any relevant leave patterns."/><TextArea label="Conduct & professional standards" value={form.conduct_comments} onChange={v=>set('conduct_comments',v)} placeholder="Professional conduct, policy compliance, client relationships and workplace behaviour."/></div></div></section>
 
-      <section className="section"><div className="card"><h2>5. Development & future objectives</h2><div className="form-grid"><TextArea label="Training & development needs" value={form.training_development} onChange={v=>set('training_development',v)} placeholder="Courses, mentoring, coaching, systems or technical development required."/><TextArea label="Career goals" value={form.career_goals} onChange={v=>set('career_goals',v)}/><TextArea label="Objectives for the next review period" value={form.future_objectives} onChange={v=>set('future_objectives',v)} placeholder="Set clear, measurable objectives and expected outcomes."/><TextArea label="Action plan" value={form.action_plan} onChange={v=>set('action_plan',v)} placeholder="Actions, owners, timescales and follow-up points."/></div></div></section>
+      <section className="section"><div className="card"><h2>5. Development & future objectives</h2><div className="form-grid"><TextArea label="Training & development needs" value={form.training_development} onChange={v=>set('training_development',v)} placeholder="Courses, mentoring, coaching, systems or technical development required."/><TextArea label="Career goals" value={form.career_goals} onChange={v=>set('career_goals',v)}/><TextArea label={mode==='probation'?'Objectives following probation':'Objectives for the next review period'} value={form.future_objectives} onChange={v=>set('future_objectives',v)} placeholder="Set clear, measurable objectives and expected outcomes."/><TextArea label="Action plan" value={form.action_plan} onChange={v=>set('action_plan',v)} placeholder="Actions, owners, timescales and follow-up points."/></div></div></section>
 
-      <section className="section"><div className="card"><h2>6. Appraisal comments</h2><div className="form-grid"><TextArea label="Manager / reviewer comments" value={form.manager_comments} onChange={v=>set('manager_comments',v)}/><TextArea label="Employee comments recorded during appraisal" value={form.employee_comments} onChange={v=>set('employee_comments',v)} placeholder="Record the employee's response, comments or points raised during the meeting."/><TextArea label="HR comments" value={form.hr_comments} onChange={v=>set('hr_comments',v)} placeholder="For HR review, moderation or follow-up."/></div></div></section>
+      <section className="section"><div className="card"><h2>6. Review comments</h2><div className="form-grid"><TextArea label="Manager / reviewer comments" value={form.manager_comments} onChange={v=>set('manager_comments',v)}/><TextArea label="Employee comments recorded during review" value={form.employee_comments} onChange={v=>set('employee_comments',v)} placeholder="Record the employee's response, comments or points raised during the meeting."/><TextArea label="HR comments" value={form.hr_comments} onChange={v=>set('hr_comments',v)} placeholder="For HR review, moderation or follow-up."/></div></div></section>
 
-      <section className="section"><div className="card"><h2>7. Completion</h2><div className="form-grid"><label><strong>Status</strong><select value={form.status} onChange={e=>set('status',e.target.value)}><option value="draft">Draft</option><option value="completed">Completed</option></select></label></div><p className="muted">Use Draft while the appraisal is being prepared. Change to Completed once the appraisal meeting and review are finished.</p><button className="button" disabled={saving} type="submit" style={{border:0,cursor:saving?'not-allowed':'pointer',opacity:saving?0.6:1}}>{saving?'Saving…':form.status==='completed'?'Complete & save appraisal':'Save draft'}</button>{message&&<p role="status" style={{marginTop:16,fontWeight:600}}>{message}</p>}</div></section>
+      <section className="section"><div className="card"><h2>7. Completion</h2>{mode==='probation'&&<p className="muted"><strong>Probation outcome:</strong> record the decision and any extension, support measures or confirmation of appointment in the manager comments and action plan.</p>}<div className="form-grid"><label><strong>Status</strong><select value={form.status} onChange={e=>set('status',e.target.value)}><option value="draft">Draft</option><option value="completed">Completed</option></select></label></div><p className="muted">Use Draft while the review is being prepared. Change to Completed once the review meeting is finished.</p><button className="button" disabled={saving} type="submit" style={{border:0,cursor:saving?'not-allowed':'pointer',opacity:saving?0.6:1}}>{saving?'Saving…':form.status==='completed'?'Complete & save review':'Save draft'}</button>{message&&<p role="status" style={{marginTop:16,fontWeight:600}}>{message}</p>}</div></section>
     </form>}
 
-    <section className="section no-print"><div className="card"><h2>Appraisal history</h2>{appraisals.length===0?<p className="muted">No appraisals have been recorded yet.</p>:<div style={{display:'grid',gap:12}}>{appraisals.map(appraisal=>{const employee=employees.find(item=>item.id===appraisal.employee_id);return <div key={appraisal.id} style={{border:'1px solid #ddd',borderRadius:10,padding:14,display:'flex',justifyContent:'space-between',alignItems:'center',gap:12,flexWrap:'wrap'}}><div><strong>{labelForEmployee(employee)}</strong><div className="muted">{appraisal.review_date} · {String(appraisal.appraisal_type||'annual').replace('_',' ')} · {appraisal.status}</div></div><button type="button" className="button" onClick={()=>editAppraisal(appraisal)}>Open appraisal</button></div>})}</div>}</div></section>
+    <section className="section no-print"><div className="card"><h2>{mode==='probation'?'Probation review history':'Appraisal history'}</h2>{visibleHistory.length===0?<p className="muted">No {mode==='probation'?'probation reviews':'appraisals'} have been recorded yet.</p>:<div style={{display:'grid',gap:12}}>{visibleHistory.map(appraisal=>{const employee=employees.find(item=>item.id===appraisal.employee_id);return <div key={appraisal.id} style={{border:'1px solid #ddd',borderRadius:10,padding:14,display:'flex',justifyContent:'space-between',alignItems:'center',gap:12,flexWrap:'wrap'}}><div><strong>{labelForEmployee(employee)}</strong><div className="muted">{appraisal.review_date} · {appraisal.appraisal_type==='probation'?'probation review':String(appraisal.appraisal_type||'annual').replace('_',' ')} · {appraisal.status}</div></div><button type="button" className="button" onClick={()=>editAppraisal(appraisal)}>Open review</button></div>})}</div>}</div></section>
+    </>}
 
     <style jsx global>{`@media print{.site-header,.no-print,button{display:none!important}.shell{max-width:none!important}.card{break-inside:avoid;box-shadow:none!important;border:1px solid #ccc!important}.section{margin:12px 0!important}input,select,textarea{border:0!important;padding:0!important;background:transparent!important;appearance:none!important}.hero{padding-top:0!important}}`}</style>
   </main>;
