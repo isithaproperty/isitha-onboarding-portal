@@ -36,6 +36,10 @@ export function canManageContracts(role: PortalRole) {
   return role === 'manager' || role === 'hr_admin' || role === 'admin';
 }
 
+export function canManageAppraisals(role: PortalRole) {
+  return role === 'manager' || role === 'hr_admin' || role === 'admin';
+}
+
 export function assignableRoles(role: PortalRole): PortalRole[] {
   if (role === 'admin') return ['staff', 'manager', 'hr_admin', 'compliance_admin', 'admin'];
   if (role === 'hr_admin') return ['staff', 'manager'];
