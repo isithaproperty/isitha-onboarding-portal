@@ -67,7 +67,7 @@ export async function createHrCompletionNotification(input: NotificationInput) {
     recipients = await resolveRecipients();
     const apiKey = process.env.RESEND_API_KEY;
     const from = process.env.NOTIFICATION_FROM_EMAIL;
-    const appUrl = (process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || '').replace(/\/$/, '');
+    const appUrl = (process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || '').replace(/\/$/, '');
 
     if (!apiKey || !from || !recipients.length) {
       await admin.from('hr_notifications').update({
