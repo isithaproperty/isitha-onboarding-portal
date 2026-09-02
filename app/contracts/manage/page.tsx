@@ -24,6 +24,8 @@ export default function ManageContracts() {
   const [rows, setRows] = useState<Contract[]>([]);
   const [msg, setMsg] = useState("");
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [canDelete, setCanDelete] = useState(false);
   const [loading, setLoading] = useState(true);
   const [allowed, setAllowed] = useState(true);
   useEffect(() => {
@@ -49,6 +51,7 @@ export default function ManageContracts() {
       setAllowed(true);
       setEmployees(data.employees || []);
       setRows(data.contracts || []);
+      setCanDelete(Boolean(data.can_delete));
     } catch {
       setAllowed(false);
       setMsg("Unable to load contracts.");
@@ -86,6 +89,34 @@ export default function ManageContracts() {
       setMsg("Unable to upload contract. Check your connection and try again.");
     } finally {
       setSaving(false);
+    }
+  }
+  async function deleteContract(contract: Contract) {
+    const name = employeeName(contract.employee_id);
+    const confirmed = window.confirm(
+      `Delete ${name}'s contract from the portal? Make sure you have downloaded and stored the signed contract on your company drive first.`,
+    );
+    if (!confirmed) return;
+
+    setDeletingId(contract.id);
+    setMsg("");
+    try {
+      const response = await fetch("/api/admin/contracts", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contract_id: contract.id }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setMsg(data.error || "Unable to delete contract.");
+        return;
+      }
+      setRows((current) => current.filter((row) => row.id !== contract.id));
+      setMsg(data.message || "Contract deleted from the portal.");
+    } catch {
+      setMsg("Unable to delete contract. Check your connection and try again.");
+    } finally {
+      setDeletingId(null);
     }
   }
   function openUrl(url: string | null | undefined, message: string) {
@@ -235,6 +266,16 @@ export default function ManageContracts() {
                       onClick={() => downloadUrl(c.signed_download_url)}
                     >
                       Download signed PDF
+                    </button>
+                  )}
+                  {canDelete && (
+                    <button
+                      className="button secondary"
+                      disabled={deletingId === c.id}
+                      onClick={() => void deleteContract(c)}
+                      style={{ color: "#991b1b", borderColor: "#fecaca" }}
+                    >
+                      {deletingId === c.id ? "Deleting..." : "Delete"}
                     </button>
                   )}
                 </div>
