@@ -48,7 +48,7 @@ export async function GET() {
       .order("uploaded_at", { ascending: false });
     if (role === "manager") {
       if (employeeIds.length === 0)
-        return NextResponse.json({ employees: [], contracts: [] });
+        return NextResponse.json({ employees: [], contracts: [], can_delete: false });
       contractQuery = contractQuery.in("employee_id", employeeIds);
     }
     const contractResult = await contractQuery;
@@ -94,6 +94,7 @@ export async function GET() {
         last_name: e.last_name,
       })),
       contracts,
+      can_delete: role === "hr_admin" || role === "admin",
     });
   } catch (error) {
     return NextResponse.json(
@@ -198,6 +199,60 @@ export async function POST(request: Request) {
   } catch (error) {
     return NextResponse.json(
       { error: safeApiError(error, "Unable to upload contract.") },
+      { status: 500 },
+    );
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const user = await getAuthenticatedUser();
+    if (!user)
+      return NextResponse.json({ error: "Please sign in again." }, { status: 401 });
+
+    const role = roleForUser(user);
+    if (role !== "hr_admin" && role !== "admin")
+      return NextResponse.json(
+        { error: "Only HR and Admin can delete contracts." },
+        { status: 403 },
+      );
+
+    const body = await request.json().catch(() => ({}));
+    const contractId = clean((body as { contract_id?: unknown }).contract_id);
+    if (!contractId)
+      return NextResponse.json({ error: "Contract ID is required." }, { status: 400 });
+
+    const admin = createSupabaseAdminClient();
+    const { data: contract, error: contractError } = await admin
+      .from("employee_contracts")
+      .select("id,file_path,signed_file_path")
+      .eq("id", contractId)
+      .is("archived_at", null)
+      .maybeSingle();
+    if (contractError) throw contractError;
+    if (!contract)
+      return NextResponse.json({ error: "Contract not found." }, { status: 404 });
+
+    const paths = [contract.file_path, contract.signed_file_path].filter(
+      (path): path is string => Boolean(path),
+    );
+    if (paths.length > 0) {
+      const { error: storageError } = await admin.storage
+        .from("employee-contracts")
+        .remove(paths);
+      if (storageError) throw storageError;
+    }
+
+    const { error: archiveError } = await admin
+      .from("employee_contracts")
+      .update({ archived_at: new Date().toISOString() })
+      .eq("id", contractId);
+    if (archiveError) throw archiveError;
+
+    return NextResponse.json({ message: "Contract deleted from the portal." });
+  } catch (error) {
+    return NextResponse.json(
+      { error: safeApiError(error, "Unable to delete contract.") },
       { status: 500 },
     );
   }
