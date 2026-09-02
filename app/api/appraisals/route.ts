@@ -109,6 +109,7 @@ export async function POST(request: Request) {
 
     const status = cleanText(body.status) === 'completed' ? 'completed' : 'draft';
     const appraisalType = ['annual','probation','quarterly','mid_year','other'].includes(String(body.appraisal_type)) ? String(body.appraisal_type) : 'annual';
+    const now = new Date().toISOString();
 
     const payload: Record<string, unknown> = {
       employee_id: employeeId,
@@ -133,18 +134,19 @@ export async function POST(request: Request) {
       action_plan: cleanText(body.action_plan),
       next_review_date: cleanDate(body.next_review_date),
       updated_by: user.id,
-      updated_at: new Date().toISOString(),
+      updated_at: now,
     };
     for (const field of RATING_FIELDS) payload[field] = cleanRating(body[field]);
 
     const admin = createSupabaseAdminClient();
     const appraisalId = cleanText(body.id);
     if (appraisalId) {
-      const { data: existing, error: existingError } = await admin.from('appraisals').select('id,employee_id,status').eq('id', appraisalId).maybeSingle();
+      const { data: existing, error: existingError } = await admin.from('appraisals').select('id,employee_id,status,completed_at').eq('id', appraisalId).maybeSingle();
       if (existingError) throw existingError;
       if (!existing || !employees.some(employee => employee.id === existing.employee_id)) {
         return NextResponse.json({ error: 'Appraisal not found or access denied.' }, { status: 404 });
       }
+      payload.completed_at = status === 'completed' ? (existing.completed_at || now) : null;
       const { data, error } = await admin.from('appraisals').update(payload).eq('id', appraisalId).select('*').single();
       if (error) throw error;
       await notifyHrOnCompletion(data, existing.status || null, employees);
@@ -152,6 +154,7 @@ export async function POST(request: Request) {
     }
 
     payload.created_by = user.id;
+    payload.completed_at = status === 'completed' ? now : null;
     const { data, error } = await admin.from('appraisals').insert(payload).select('*').single();
     if (error) throw error;
     await notifyHrOnCompletion(data, null, employees);
