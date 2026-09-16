@@ -112,3 +112,13 @@ test("employee edits preserve visible contact details", async () => {
   assert.match(route, /if \(mobile\) updates\.mobile_number = mobile/);
   assert.match(route, /if \(email\) directoryUpdates\.email = email/);
 });
+
+test("HR can change a portal role before onboarding is completed", async () => {
+  const page = await read("app/admin/page.tsx");
+  const route = await read("app/api/admin/employees/[employeeId]/route.ts");
+  assert.match(page, /handleRoleUpdate/);
+  assert.match(page, /body: JSON\.stringify\(\{ role \}\)/);
+  assert.match(route, /if \(Object\.keys\(updates\)\.length > 1\)/);
+  assert.match(route, /app_metadata: appMetadata/);
+  assert.match(route, /sign out and back in to refresh their access/);
+});

@@ -102,29 +102,30 @@ export async function PATCH(request: Request, context: { params: Promise<{ emplo
     if (mobile) updates.mobile_number = mobile;
     if (status) updates.status = status;
 
-    const { data, error } = await admin.from('employee_hr_onboarding').update(updates).eq('employee_id', employeeId).select('id,employee_id,legal_first_name,legal_last_name,personal_email,mobile_number,declaration_accepted,status').maybeSingle();
-    if (error) throw error;
-    if (!data) return NextResponse.json({ error: 'Employee onboarding record was not found.' }, { status: 404 });
-
     const directoryUpdates: Record<string, string | number> = { updated_at: new Date().toISOString() };
     if (body.firstName !== undefined) directoryUpdates.first_name = clean(body.firstName);
     if (body.lastName !== undefined) directoryUpdates.last_name = clean(body.lastName);
     if (email) directoryUpdates.email = email;
     if (annualLeaveEntitlement !== undefined) directoryUpdates.annual_leave_entitlement = annualLeaveEntitlement;
-    const { error: directoryError } = await admin
+    const { data: directoryRecord, error: directoryError } = await admin
       .from('employees')
       .update(directoryUpdates)
-      .eq('id', employeeId);
+      .eq('id', employeeId)
+      .select('id,auth_user_id,first_name,last_name,email,annual_leave_entitlement')
+      .maybeSingle();
     if (directoryError) throw directoryError;
+    if (!directoryRecord) return NextResponse.json({ error: 'Employee record was not found.' }, { status: 404 });
+
+    let onboardingRecord = null;
+    if (Object.keys(updates).length > 1) {
+      const { data, error } = await admin.from('employee_hr_onboarding').update(updates).eq('employee_id', employeeId).select('id,employee_id,legal_first_name,legal_last_name,personal_email,mobile_number,declaration_accepted,status').maybeSingle();
+      if (error) throw error;
+      onboardingRecord = data;
+    }
 
     if (role) {
-      const { data: staffRecord, error: staffLookupError } = await admin
-        .from('employees')
-        .select('auth_user_id')
-        .eq('id', employeeId)
-        .maybeSingle();
-      if (staffLookupError) throw staffLookupError;
-      const authUserId = staffRecord?.auth_user_id || employeeId;
+      const authUserId = directoryRecord.auth_user_id;
+      if (!authUserId) return NextResponse.json({ error: 'This employee is not linked to a portal login.' }, { status: 400 });
       const { data: authUser, error: authLookupError } = await admin.auth.admin.getUserById(authUserId);
       if (authLookupError) throw authLookupError;
       if (!authUser.user) return NextResponse.json({ error: 'This employee is not linked to a portal login.' }, { status: 400 });
@@ -133,7 +134,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ emplo
       if (roleError) throw roleError;
     }
 
-    return NextResponse.json({ employee: { ...data, role: role || undefined, annual_leave_entitlement: annualLeaveEntitlement }, message: 'Employee record updated.' });
+    return NextResponse.json({
+      employee: { ...(onboardingRecord || directoryRecord), role: role || undefined, annual_leave_entitlement: annualLeaveEntitlement },
+      message: role
+        ? 'Portal role updated. The employee must sign out and back in to refresh their access.'
+        : 'Employee record updated.',
+    });
   } catch (error) {
     return NextResponse.json({ error: safeApiError(error, 'Unable to update employee.') }, { status: 500 });
   }
