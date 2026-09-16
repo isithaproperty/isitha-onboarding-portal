@@ -114,6 +114,7 @@ export default function AdminPage() {
   const [adminError, setAdminError] = useState("");
   const [employeeMessage, setEmployeeMessage] = useState("");
   const [assignablePortalRoles, setAssignablePortalRoles] = useState<string[]>([]);
+  const [savingRole, setSavingRole] = useState<string | null>(null);
 
   async function loadAdminData() {
     try {
@@ -206,6 +207,29 @@ export default function AdminPage() {
       setEmployeeMessage("Unable to update employee.");
     } finally {
       setSavingEmployee(false);
+    }
+  }
+
+  async function handleRoleUpdate(employee: Employee, role: string) {
+    if (!employee.employee_id) return;
+    setSavingRole(employee.employee_id);
+    setEmployeeMessage("");
+    try {
+      const response = await fetch(`/api/admin/employees/${employee.employee_id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role }),
+      });
+      const result = await response.json();
+      if (!response.ok) setEmployeeMessage(result.error || "Unable to update portal role.");
+      else {
+        setEmployeeMessage(result.message || "Portal role updated. The employee must sign out and back in to refresh their access.");
+        await loadAdminData();
+      }
+    } catch {
+      setEmployeeMessage("Unable to update portal role.");
+    } finally {
+      setSavingRole(null);
     }
   }
 
@@ -370,7 +394,21 @@ export default function AdminPage() {
                             <td>{employeeTraining.length ? employeeTraining.map((i, x) => `${courseLabel(i, x)}: ${i.progress_percent}%`).join(" | ") : "Not started"}</td>
                             <td>{accepted ? "Accepted" : "Outstanding"}</td>
                             <td><strong>{employee.status || "Not submitted"}</strong></td>
-                            <td><strong>{roleLabel(employee.role)}</strong></td>
+                            <td>
+                              {assignablePortalRoles.length > 0 ? (
+                                <label>
+                                  <span className="muted">Portal access</span>
+                                  <select
+                                    aria-label={`Portal role for ${employee.legal_first_name || "employee"}`}
+                                    defaultValue={(employee.role || "staff").toLowerCase()}
+                                    disabled={savingRole === employee.employee_id}
+                                    onChange={(event) => handleRoleUpdate(employee, event.target.value)}
+                                  >
+                                    {Array.from(new Set([employee.role || "staff", ...assignablePortalRoles])).map(role => <option key={role} value={role}>{roleLabel(role)}</option>)}
+                                  </select>
+                                </label>
+                              ) : <strong>{roleLabel(employee.role)}</strong>}
+                            </td>
                             <td>
                               {(employee.status || "").toLowerCase() !== "not_started" && <><button className="button" type="button" onClick={() => setExpandedEmployee(expanded ? null : employee.id)}>{expanded ? "Hide" : "View HR record"}</button>{" "}<button className="button secondary" type="button" onClick={() => setEditingEmployee(editing ? null : employee.id)}>{editing ? "Cancel" : "Edit"}</button>{" "}</>}
                               <button className="button secondary" type="button" disabled={deletingEmployee === employee.employee_id} onClick={() => handleEmployeeDelete(employee)}>{deletingEmployee === employee.employee_id ? "Deleting..." : "Delete employee"}</button>
